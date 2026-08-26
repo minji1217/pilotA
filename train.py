@@ -3,7 +3,7 @@ from data.regression import DamageRegression
 import torch
 from data.loader import load_pilot_a_batch
 from prior import Prior
-from marginal import marginal
+from marginal import marginalize
 
 def train(batch, *,seed=0,epochs=2000,lr=0.02):
     
@@ -24,7 +24,7 @@ def train(batch, *,seed=0,epochs=2000,lr=0.02):
         out_l=like(batch,out_r.mu)
         w_batch=pri(batch.pi_ls,batch.pi_lq)
         
-        _,log_Py=marginal(w_batch,out_l.log_L)
+        _,log_Py=marginalize(w_batch,out_l.log_L)
         loss=-log_Py.sum()
 
         opt.zero_grad() #기울기 누적 초기화

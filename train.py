@@ -4,6 +4,7 @@ import torch
 from data.loader import load_pilot_a_batch
 from prior import Prior
 from marginal import marginalize
+from infer import infer
 
 def train(batch, *,seed=0,epochs=2000,lr=0.02):
     
@@ -42,4 +43,11 @@ if __name__=="__main__":
     batch=load_pilot_a_batch("raw/재난프로젝트_시정촌별_통계데이터.xlsx",
                              "raw/재난프로젝트_시정촌별_USGS.xlsx")
 
-    train(batch=batch)
+    reg,like,pri=train(batch=batch)
+
+    out_r = reg(batch)
+    out_l = like(batch, out_r.mu)
+    log_w = pri(batch.pi_ls, batch.pi_lq)
+    log_joint, log_Py = marginalize(log_w, out_l.log_L)
+
+    p_ls, p_lq = infer(log_joint, log_Py)

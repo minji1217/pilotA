@@ -66,21 +66,6 @@ class DamageLikelihood(nn.Module):
     - 모델 관점의 실제 학습 파라미터는 phi_c [6] 하나의 셋
     """
 
-    def __init__(self, *, phi_init: float=5.0)-> None : 
-        """
-        채널별 phi 파라미터 생성
-        phi_init: 
-            초기값 5.0 
-            실제 phi가 5.0 되도록 softplus 이전 내부값 역변환해 parameter로 저장
-        
-        """
-        super().__init__()
-
-        if phi_init<=0:
-            raise ValueError("phi_init은 0보다 커야 합니다.")
-
-        self.phi_init = float(phi_init)
-        phi_unconstrained_init = _inverse_softplus(self.phi_init)
 
     def __init__(self, *, phi_init: float = 5.0) -> None:
         """
@@ -218,7 +203,7 @@ class DamageLikelihood(nn.Module):
 
 
     @torch.no_grad()
-    def _check_negatvie_binomial_parameterization(
+    def _check_negative_binomial_parameterization(
         self,
         *,
         dist:torch.distributions.NegativeBinomial,
@@ -232,7 +217,7 @@ class DamageLikelihood(nn.Module):
 
         이 검사는 학습 로직이 아니라 구현 실수를 조기에 잡기 위한 체크포인트임
         """
-        expected_variance = expected_variance = mu + (mu.square() / phi_broadcast)
+        expected_variance =  mu + (mu.square() / phi_broadcast)
     
 
         if not torch.allclose(dist.mean, mu, rtol=1e-7, atol=1e-10):

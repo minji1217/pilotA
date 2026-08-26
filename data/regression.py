@@ -169,7 +169,7 @@ class DamageRegression(nn.Module):
         gamma_c^LS [6]반환
         내부값에 softplus 적용하므로 항상 0이상이며 초기값은 모두 0.1
         """
-        return F.softplus(self._gamma_lq_unconstrained)
+        return F.softplus(self._gamma_ls_unconstrained)
 
     @property
     def gamma_lq(self) -> Tensor:

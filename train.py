@@ -74,7 +74,7 @@ def save_eval(result, gt_df, dir_="outputs"):
     }])
     summary.to_csv(f"{dir_}/eval_summary.csv", index=False, encoding="utf-8-sig")
 
-    # ② 상세 — 어느 시정촌에서 틀렸는지 확인용
+    # ② 상세 — 시정촌별로 정답/예측/오차를 펼쳐서 확인용
     detail = result.merged.copy()
     detail["err_ls"] = (detail["p_ls"] - detail["ls_true"]) ** 2
     detail["err_lq"] = (detail["p_lq"] - detail["lq_true"]) ** 2
@@ -84,7 +84,8 @@ def save_eval(result, gt_df, dir_="outputs"):
     # 파일만 보고 오해하지 않도록 비워둔다.
     excluded_ls = ~detail["ls_eval_mask"].astype(bool)
     detail.loc[excluded_ls, ["ls_true", "err_ls"]] = pd.NA
-    detail.sort_values("err_lq", ascending=False).to_csv(
+    # 시정촌코드 순으로 정렬한다. 5자리 고정폭 문자열이라 문자열 정렬이 곧 번호 순이다.
+    detail.sort_values("muni_code").to_csv(
         f"{dir_}/eval_detail.csv", index=False, encoding="utf-8-sig"
     )
     print(f"저장: {dir_}/eval_summary.csv, {dir_}/eval_detail.csv")

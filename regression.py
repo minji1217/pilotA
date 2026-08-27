@@ -51,7 +51,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
-from data.schema import (
+from schema import (
     DTYPE,
     EPS,
     LATENT_STATES,

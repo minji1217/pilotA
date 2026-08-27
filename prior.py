@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 import torch.nn.functional as F
-from data.schema import EPS,LATENT_STATES
+from schema import EPS,LATENT_STATES
 
 # 내가 이 파일에서 해야할것
 # 1.w를 구하는것 (w00,w10,w01,w11)

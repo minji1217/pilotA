@@ -1,5 +1,5 @@
 import torch
-from data.schema import LATENT_STATES
+from schema import LATENT_STATES
 
 # marginal(주변화)는 이제 민지님께서 likeligood.py에서 전달 해주신 L=[B,4]를
 # 내가 만든 prior.py에서 만들어진 w=[B,4]와 곱하고 다 더하는 작업

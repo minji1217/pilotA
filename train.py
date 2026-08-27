@@ -1,7 +1,7 @@
-from data.likelihood import DamageLikelihood
-from data.regression import DamageRegression
+from likelihood import DamageLikelihood
+from regression import DamageRegression
 import torch
-from data.loader import load_pilot_a_batch
+from loader import load_pilot_a_batch
 from prior import Prior
 from marginal import marginalize
 from infer import infer

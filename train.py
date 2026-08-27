@@ -6,7 +6,7 @@ from prior import Prior
 from marginal import marginalize
 from infer import infer
 
-def train(batch, *,seed=0,epochs=2000,lr=0.02):
+def train(batch, *,seed=0,epochs=3000,lr=0.02):
     
     like=DamageLikelihood()
     reg=DamageRegression()

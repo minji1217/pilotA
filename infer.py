@@ -2,7 +2,7 @@ from torch import Tensor
 from torch import exp
 import torch
 
-from data.schema import LATENT_STATES
+from schema import LATENT_STATES
 
 LS_ON=[i for i,(ls,lq) in enumerate(LATENT_STATES) if ls==1]
 LQ_ON=[i for i,(ls,lq) in enumerate(LATENT_STATES) if lq==1]

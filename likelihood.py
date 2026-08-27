@@ -35,7 +35,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
-from data.schema import DTYPE, NUM_CHANNELS, NUM_STATES, PilotABatch
+from schema import DTYPE, NUM_CHANNELS, NUM_STATES, PilotABatch
 
 @dataclass 
 class LikelihoodOutput:

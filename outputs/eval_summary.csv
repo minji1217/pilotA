@@ -1,0 +1,2 @@
+﻿event,n,n_ls,mse_ls,mse_lq,n_pos_ls,n_pos_lq,note
+2018 훗카이도,40,11,0.4423409592630287,0.28848145681499693,7,17,"LS는 원본 NA 행 평가 제외(ls_eval_mask), LQ는 NA를 0으로 간주"

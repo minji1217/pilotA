@@ -26,7 +26,7 @@ from typing import Iterable
 import pandas as pd
 import torch
 
-from .schema import (
+from schema import (
     CHANNELS,
     DAMAGE_COLUMN_MAP,
     DTYPE,

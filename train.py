@@ -1,13 +1,99 @@
+from pathlib import Path
+
+import pandas as pd
+import torch
+
 from likelihood import DamageLikelihood
 from regression import DamageRegression
-import torch
-from loader import load_pilot_a_batch
 from prior import Prior
 from marginal import marginalize
 from infer import infer
+from loader import EVAL_EVENT_NAME, load_eval_ground_truth, load_pilot_a_batch
+from eval import evaluate
+from schema import INDEX_TO_EVENT, EvalGroundTruthBatch, PilotABatch
+
+STATS_PATH = "raw/재난프로젝트_시정촌별_통계데이터.xlsx"
+USGS_PATH = "raw/재난프로젝트_시정촌별_USGS.xlsx"
+GT_PATH = "validation/LS_LF_데이터자료.xlsx"
+
+
+def save_predictions(batch, p_ls, p_lq, path="outputs/predictions.csv"):
+    """전체 382행의 사후확률을 저장한다."""
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+
+    df = pd.DataFrame({
+        "event_idx": batch.event_idx.tolist(),
+        "event": [INDEX_TO_EVENT[i] for i in batch.event_idx.tolist()],
+        "muni_code": list(batch.municipality_code),
+        "p_ls": p_ls.detach().numpy(),
+        "p_lq": p_lq.detach().numpy(),
+    })
+    df.to_csv(path, index=False, encoding="utf-8-sig")
+    print(f"저장: {path}  ({len(df)}행)")
+    return df
+
+
+def to_eval_pred(batch: PilotABatch, p_ls, p_lq, eval_gt: EvalGroundTruthBatch):
+    """eval.py에 넘길 훗카이도 행만 뽑는다.
+
+    loader가 만든 model_row_idx가 이미 GT와 같은 순서로 정렬돼 있으므로
+    event_idx로 다시 마스킹하지 않고 그대로 쓴다.
+    """
+    idx = eval_gt.model_row_idx
+
+    return pd.DataFrame({
+        "muni_code": list(eval_gt.municipality_code),
+        "p_ls": p_ls[idx].detach().numpy(),
+        "p_lq": p_lq[idx].detach().numpy(),
+    })
+
+
+def to_eval_gt(eval_gt: EvalGroundTruthBatch):
+    """EvalGroundTruthBatch를 eval.py가 쓰는 컬럼명으로 바꾼다."""
+    return pd.DataFrame({
+        "muni_code": list(eval_gt.municipality_code),
+        "ls_true": eval_gt.gt_ls.tolist(),
+        "lq_true": eval_gt.gt_lq.tolist(),
+        "ls_eval_mask": eval_gt.ls_eval_mask.tolist(),
+    })
+
+
+def save_eval(result, gt_df, dir_="outputs"):
+    Path(dir_).mkdir(parents=True, exist_ok=True)
+
+    # ① 요약 — 나중에 여러 실험을 세로로 쌓기 좋게
+    summary = pd.DataFrame([{
+        "event": EVAL_EVENT_NAME,
+        "n": result.n,
+        "n_ls": result.n_ls,
+        "mse_ls": result.mse_ls,
+        "mse_lq": result.mse_lq,
+        "n_pos_ls": int(gt_df.loc[gt_df["ls_eval_mask"], "ls_true"].sum()),
+        "n_pos_lq": int(gt_df["lq_true"].sum()),
+        "note": "LS는 원본 NA 행 평가 제외(ls_eval_mask), LQ는 NA를 0으로 간주",
+    }])
+    summary.to_csv(f"{dir_}/eval_summary.csv", index=False, encoding="utf-8-sig")
+
+    # ② 상세 — 어느 시정촌에서 틀렸는지 확인용
+    detail = result.merged.copy()
+    detail["err_ls"] = (detail["p_ls"] - detail["ls_true"]) ** 2
+    detail["err_lq"] = (detail["p_lq"] - detail["lq_true"]) ** 2
+
+    # ls_eval_mask=False인 행의 ls_true는 원본이 NA라서 넣어둔 placeholder 0이다.
+    # 진짜 정답이 아니므로 err_ls를 계산해봐야 의미가 없고, mse_ls에도 안 들어간다.
+    # 파일만 보고 오해하지 않도록 비워둔다.
+    excluded_ls = ~detail["ls_eval_mask"].astype(bool)
+    detail.loc[excluded_ls, ["ls_true", "err_ls"]] = pd.NA
+    detail.sort_values("err_lq", ascending=False).to_csv(
+        f"{dir_}/eval_detail.csv", index=False, encoding="utf-8-sig"
+    )
+    print(f"저장: {dir_}/eval_summary.csv, {dir_}/eval_detail.csv")
+
 
 def train(batch, *,seed=0,epochs=3000,lr=0.02):
     
+    torch.manual_seed(seed)
+
     like=DamageLikelihood()
     reg=DamageRegression()
     pri=Prior()
@@ -16,7 +102,7 @@ def train(batch, *,seed=0,epochs=3000,lr=0.02):
     reg.initialize_from_batch(batch)
     opt=torch.optim.Adam(list(like.parameters())+list(reg.parameters())+list(pri.parameters()),lr=lr)
     #total param??
-    print(f"총 학습될 파라미터 : {sum(p.numel() for p in opt.param_groups[0]["params"])}개")
+    print(f"총 학습될 파라미터 : {sum(p.numel() for p in opt.param_groups[0]['params'])}개")
     
 
     for epoch in range(epochs):
@@ -39,15 +125,30 @@ def train(batch, *,seed=0,epochs=3000,lr=0.02):
 
 
 
-if __name__=="__main__":
-    batch=load_pilot_a_batch("raw/재난프로젝트_시정촌별_통계데이터.xlsx",
-                             "raw/재난프로젝트_시정촌별_USGS.xlsx")
+if __name__ == "__main__":
+    # 학습용 batch(382행)를 만들고, 선배가 만든 API로 평가용 GT를 정렬해 받는다.
+    # GT는 eval 전용이라 train()에는 넘기지 않는다.
+    batch = load_pilot_a_batch(STATS_PATH, USGS_PATH)
+    eval_gt = load_eval_ground_truth(GT_PATH, batch)
+    print(f"batch {batch.batch_size}행 / 평가 GT {eval_gt.batch_size}행 ({EVAL_EVENT_NAME})")
 
-    reg,like,pri=train(batch=batch)
+    reg, like, pri = train(batch=batch)
 
-    out_r = reg(batch)
-    out_l = like(batch, out_r.mu)
-    log_w = pri(batch.pi_ls, batch.pi_lq)
-    log_joint, log_Py = marginalize(log_w, out_l.log_L)
+    with torch.no_grad():                        # ← grad 안 만듦
+        out_r = reg(batch)
+        out_l = like(batch, out_r.mu)
+        log_w = pri(batch.pi_ls, batch.pi_lq)
+        log_joint, log_Py = marginalize(log_w, out_l.log_L)
+        p_ls, p_lq = infer(log_joint, log_Py)
 
-    p_ls, p_lq = infer(log_joint, log_Py)
+    save_predictions(batch, p_ls, p_lq)
+
+    gt = to_eval_gt(eval_gt)
+    pred = to_eval_pred(batch, p_ls, p_lq, eval_gt)
+    result = evaluate(gt, pred)
+    save_eval(result, gt)
+
+    print(
+        f"MSE_LS {result.mse_ls:.4f} (n={result.n_ls}) / "
+        f"MSE_LQ {result.mse_lq:.4f} (n={result.n})"
+    )

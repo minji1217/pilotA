@@ -8,6 +8,6 @@ from data.schema import LATENT_STATES
 def marginalize(log_w, log_L):
     log_wl=log_w+log_L
     log_Py=torch.logsumexp(log_wl,dim=-1)
-    return log_Py,log_wl
+    return log_wl,log_Py
 
 #민망할 정도로 짧다...

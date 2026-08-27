@@ -12,8 +12,10 @@ Pilot A - data/loader.py
 6. LS_prior(평균), LQ_prior(평균), PGV와 Exposure가 모두 있는 행만 남긴다.
 7. population / households_general로 E를 만든다.
 8. PyTorch PilotABatch로 변환하고 batch.validate()를 실행한다.
+9. eval용 GT가 필요하면 LS_LF 데이터자료.xlsx를 읽어 EvalGroundTruthBatch를 별도로 만든다.
 
 중요: 시정촌코드는 계산용 숫자가 아니라 ID이므로 int로 바꾸어 보관하지 않는다.
+GT는 모델 입력이 아니므로 PilotABatch에 넣지 않고 EvalGroundTruthBatch로 분리한다.
 """
 
 from __future__ import annotations
@@ -42,6 +44,7 @@ from .schema import (
     USGS_LQ_PRIOR_COLUMN,
     USGS_LS_PRIOR_COLUMN,
     USGS_PGV_COLUMN,
+    EvalGroundTruthBatch,
     PilotABatch,
 )
 
@@ -60,6 +63,22 @@ USGS_REQUIRED_COLUMNS: tuple[str, ...] = (
     USGS_LS_PRIOR_COLUMN,
     USGS_LQ_PRIOR_COLUMN,
     USGS_PGV_COLUMN,
+)
+
+
+# 현재 실제 GT 파일은 2018 훗카이도 한 이벤트의 LS/LQ 정답을 제공한다.
+EVAL_EVENT_NAME: str = "2018 훗카이도"
+EVAL_LS_SHEET_NAME: str = "2018 훗카이도(LS)"
+EVAL_LQ_SHEET_NAME: str = "2018 훗카이도 (LF)"
+GT_CODE_COLUMN: str = "muni_code"
+GT_LS_AREA_COLUMN: str = "ls_area_ha"
+GT_LQ_FLAG_COLUMN: str = "jshis_flag"
+
+# LF GT는 삿포로시가 01101~01110의 10개 구로 나뉘어 있지만 모델 데이터는 삿포로시 01100 한 행이다.
+# 평가 시에는 어느 한 구라도 LQ GT=1이면 삿포로시 전체 GT를 1로 보는 max 집계를 사용한다.
+SAPPORO_CITY_CODE: str = "01100"
+SAPPORO_WARD_CODES: frozenset[str] = frozenset(
+    f"011{ward:02d}" for ward in range(1, 11)
 )
 
 
@@ -537,6 +556,261 @@ def load_excluded_rows(
     """
     _, excluded_df, _, _ = _load_all_events(stats_path, usgs_path)
     return excluded_df
+
+
+def _prepare_ls_ground_truth(gt_path: str | Path) -> pd.DataFrame:
+    """
+    LS GT 시트를 시정촌코드 + gt_ls(0/1) 형태로 정리한다.
+
+    현재 원본 규칙:
+    - ls_area_ha > 0  -> gt_ls=1
+    - ls_area_ha == 0 -> gt_ls=0
+    - NaN / "NA"  -> gt_ls=0
+
+    사용자가 확정한 eval 규칙에 따라 GT의 결측은 '발생 없음(0)'으로 처리한다.
+    """
+    df = pd.read_excel(gt_path, sheet_name=EVAL_LS_SHEET_NAME)
+    required = [GT_CODE_COLUMN, GT_LS_AREA_COLUMN]
+    missing = [column for column in required if column not in df.columns]
+    if missing:
+        raise ValueError(
+            f"[{EVAL_LS_SHEET_NAME}] GT 필수 컬럼이 없습니다: {missing}"
+        )
+
+    result = pd.DataFrame()
+    result[MUNICIPALITY_CODE_COLUMN] = df[GT_CODE_COLUMN].map(
+        _normalize_municipality_code
+    )
+    result = result.loc[result[MUNICIPALITY_CODE_COLUMN].notna()].copy()
+
+    # 숫자로 변환한다.
+    # 문자열 "NA" / 빈칸 등은 NaN으로 변환된다.
+    ls_area = pd.to_numeric(
+        df.loc[result.index, GT_LS_AREA_COLUMN],
+        errors="coerce",
+    ).astype("float64")
+
+    # LS는 NaN이면 정답 0으로 보는 게 아니라 평가에서 제외한다.
+    # True  = LS GT가 실제 존재
+    # False = LS GT가 NaN/NA이므로 LS 평가 제외
+    result["ls_eval_mask"] = ls_area.notna()
+
+    # 실제 값이 존재하는데 음수이면 데이터 오류
+    negative_mask = ls_area.notna() & (ls_area < 0)
+
+    if negative_mask.any():
+        bad_codes = result.loc[
+            negative_mask,
+            MUNICIPALITY_CODE_COLUMN,
+        ].tolist()
+
+        raise ValueError(
+            f"[{EVAL_LS_SHEET_NAME}] ls_area_ha는 음수가 될 수 없습니다: {bad_codes}"
+        )
+
+    # 확정 LS GT 규칙
+    # > 0   -> 1
+    # == 0  -> 0
+    # NaN   -> 임시값 0을 넣되 ls_eval_mask=False라 평가에서는 제외
+    result["gt_ls"] = (
+        ls_area.fillna(0.0) > 0
+    ).astype("int64")
+
+    if result[MUNICIPALITY_CODE_COLUMN].duplicated().any():
+        duplicates = result.loc[
+            result[MUNICIPALITY_CODE_COLUMN].duplicated(keep=False),
+            MUNICIPALITY_CODE_COLUMN,
+        ].tolist()
+        raise ValueError(
+            f"[{EVAL_LS_SHEET_NAME}] 중복 시정촌코드가 있습니다: {duplicates}"
+        )
+
+    return result[
+    [
+        MUNICIPALITY_CODE_COLUMN,
+        "gt_ls",
+        "ls_eval_mask",
+    ]
+].reset_index(drop=True)
+
+
+def _prepare_lq_ground_truth(gt_path: str | Path) -> pd.DataFrame:
+    """
+    LF(LQ) GT 시트를 시정촌코드 + gt_lq(0/1) 형태로 정리한다.
+
+    현재 원본 규칙:
+    - jshis_flag == 1 -> gt_lq=1
+    - jshis_flag == 0 -> gt_lq=0
+    - NaN / "NA"   -> gt_lq=0
+
+    LF 원본만 삿포로시가 01101~01110의 10개 구로 분리되어 있으므로
+    모델의 삿포로시 코드 01100으로 합치고 max(gt_lq)를 사용한다.
+    즉 10개 구 중 하나라도 1이면 삿포로시 gt_lq=1이다.
+    """
+    df = pd.read_excel(gt_path, sheet_name=EVAL_LQ_SHEET_NAME)
+    required = [GT_CODE_COLUMN, GT_LQ_FLAG_COLUMN]
+    missing = [column for column in required if column not in df.columns]
+    if missing:
+        raise ValueError(
+            f"[{EVAL_LQ_SHEET_NAME}] GT 필수 컬럼이 없습니다: {missing}"
+        )
+
+    result = pd.DataFrame()
+    result[MUNICIPALITY_CODE_COLUMN] = df[GT_CODE_COLUMN].map(
+        _normalize_municipality_code
+    )
+    result = result.loc[result[MUNICIPALITY_CODE_COLUMN].notna()].copy()
+
+    lq_flag = pd.to_numeric(df.loc[result.index, GT_LQ_FLAG_COLUMN], errors="coerce")
+    lq_flag = lq_flag.fillna(0.0).astype("float64")
+
+    # 현재 GT의 jshis_flag는 1 또는 결측이지만, 잘못된 숫자가 들어오면 조기에 중단한다.
+    invalid_flag = ~lq_flag.isin([0.0, 1.0])
+    if invalid_flag.any():
+        bad = result.loc[invalid_flag, MUNICIPALITY_CODE_COLUMN].tolist()
+        raise ValueError(
+            f"[{EVAL_LQ_SHEET_NAME}] jshis_flag는 0/1/결측만 허용합니다: {bad}"
+        )
+
+    result["gt_lq"] = lq_flag.astype("int64")
+
+    # LF GT의 삿포로 10개 구를 모델 데이터의 삿포로시 한 행(01100)으로 맞춘다.
+    ward_mask = result[MUNICIPALITY_CODE_COLUMN].isin(SAPPORO_WARD_CODES)
+    result.loc[ward_mask, MUNICIPALITY_CODE_COLUMN] = SAPPORO_CITY_CODE
+
+    # 삿포로처럼 여러 원본 행이 하나의 시정촌으로 합쳐진 경우 0/1 max로 집계한다.
+    result = (
+        result.groupby(MUNICIPALITY_CODE_COLUMN, as_index=False, sort=False)["gt_lq"]
+        .max()
+        .reset_index(drop=True)
+    )
+
+    return result
+
+
+def _prepare_eval_ground_truth_df(gt_path: str | Path) -> pd.DataFrame:
+    """LS/LQ GT를 시정촌코드 기준으로 합쳐 평가용 DataFrame을 만든다."""
+    gt_path = Path(gt_path)
+    if not gt_path.exists():
+        raise FileNotFoundError(f"GT XLSX를 찾을 수 없습니다: {gt_path}")
+
+    ls_df = _prepare_ls_ground_truth(gt_path)
+    lq_df = _prepare_lq_ground_truth(gt_path)
+
+    merged = ls_df.merge(
+        lq_df,
+        on=MUNICIPALITY_CODE_COLUMN,
+        how="outer",
+        validate="one_to_one",
+        indicator=True,
+    )
+
+    unmatched = merged["_merge"].ne("both")
+    if unmatched.any():
+        problem_rows = merged.loc[
+            unmatched, [MUNICIPALITY_CODE_COLUMN, "_merge"]
+        ].to_dict("records")
+        raise ValueError(
+            "LS/LQ GT의 시정촌 목록이 서로 다릅니다: "
+            f"{problem_rows[:10]}"
+        )
+
+    merged = merged.drop(columns="_merge")
+    merged["event_idx"] = EVENT_TO_INDEX[EVAL_EVENT_NAME]
+    return merged.reset_index(drop=True)
+
+
+def load_eval_ground_truth(
+    gt_path: str | Path,
+    model_batch: PilotABatch,
+) -> EvalGroundTruthBatch:
+    """
+    실제 GT를 읽고 전체 PilotABatch의 예측 행과 정확히 정렬해 eval 입력을 만든다.
+
+    중요한 점:
+    - GT는 현재 2018 훗카이도 이벤트에만 존재한다.
+    - GT의 NaN/'NA'는 사용자가 확정한 규칙대로 0으로 변환한다.
+    - 모델에서 실제 예측 가능한 행만 평가한다.
+      따라서 GT에는 있지만 USGS/PGV 문제로 PilotABatch에서 제외된 시정촌은 eval에서도 제외된다.
+    - model_row_idx를 함께 반환하므로 eval.py는 전체 posterior 결과에서 평가 행만 바로 선택할 수 있다.
+    """
+    model_batch.validate()
+    gt_df = _prepare_eval_ground_truth_df(gt_path)
+
+    eval_event_idx = EVENT_TO_INDEX[EVAL_EVENT_NAME]
+    model_event_mask = model_batch.event_idx.eq(eval_event_idx)
+    model_row_idx = torch.nonzero(model_event_mask, as_tuple=False).flatten()
+
+    if model_row_idx.numel() == 0:
+        raise ValueError(
+            f"PilotABatch에 평가 이벤트 '{EVAL_EVENT_NAME}' 행이 없습니다."
+        )
+
+    # 전체 batch에서 2018 훗카이도에 해당하는 시정촌코드를 모델 행 순서 그대로 가져온다.
+    model_codes = [
+        model_batch.municipality_code[int(idx)]
+        for idx in model_row_idx.tolist()
+    ]
+
+    if len(set(model_codes)) != len(model_codes):
+        raise ValueError(
+            f"'{EVAL_EVENT_NAME}' 모델 행에 중복 시정촌코드가 있습니다."
+        )
+
+    gt_by_code = gt_df.set_index(MUNICIPALITY_CODE_COLUMN)
+    missing_gt_codes = [code for code in model_codes if code not in gt_by_code.index]
+    if missing_gt_codes:
+        raise ValueError(
+            "모델에는 존재하지만 GT에 없는 평가 시정촌이 있습니다: "
+            f"{missing_gt_codes}"
+        )
+
+    # model_codes 순서로 reindex하여 posterior와 GT가 같은 행 순서를 갖게 한다.
+    aligned_gt = gt_by_code.loc[model_codes]
+
+    eval_batch = EvalGroundTruthBatch(
+        model_row_idx=model_row_idx.to(dtype=INDEX_DTYPE),
+        gt_ls=torch.tensor(
+            aligned_gt["gt_ls"].to_numpy(dtype="int64"),
+            dtype=INDEX_DTYPE,
+        ),
+        gt_lq=torch.tensor(
+            aligned_gt["gt_lq"].to_numpy(dtype="int64"),
+            dtype=INDEX_DTYPE,
+        ),
+        ls_eval_mask=torch.tensor(
+            aligned_gt["ls_eval_mask"].to_numpy(dtype="bool"),
+            dtype=torch.bool,
+        ),
+        event_idx=model_batch.event_idx[model_row_idx].clone(),
+        municipality_code=tuple(model_codes),
+    )
+
+    eval_batch.validate()
+    return eval_batch
+
+
+def load_eval_inputs(
+    stats_path: str | Path,
+    usgs_path: str | Path,
+    gt_path: str | Path,
+    *,
+    strict_expected_rows: bool = True,
+) -> tuple[PilotABatch, EvalGroundTruthBatch]:
+    """
+    eval.py가 바로 사용할 모델 입력 + GT 입력을 함께 만든다.
+
+    반환:
+    - model_batch: 기존 학습/추론용 PilotABatch
+    - eval_gt: 실제 GT가 존재하면서 모델 예측도 가능한 행만 정렬한 EvalGroundTruthBatch
+    """
+    model_batch = load_pilot_a_batch(
+        stats_path,
+        usgs_path,
+        strict_expected_rows=strict_expected_rows,
+    )
+    eval_gt = load_eval_ground_truth(gt_path, model_batch)
+    return model_batch, eval_gt
 
 
 if __name__ == "__main__":

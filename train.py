@@ -12,6 +12,8 @@ from loader import EVAL_EVENT_NAME, load_eval_ground_truth, load_pilot_a_batch
 from eval import evaluate
 from schema import INDEX_TO_EVENT, EvalGroundTruthBatch, PilotABatch
 
+from reporting import dump_params, save_loss_history
+
 STATS_PATH = "raw/재난프로젝트_시정촌별_통계데이터.xlsx"
 USGS_PATH = "raw/재난프로젝트_시정촌별_USGS.xlsx"
 GT_PATH = "validation/LS_LF_데이터자료.xlsx"
@@ -99,7 +101,7 @@ def train(batch, *,seed=0,epochs=3000,lr=0.02):
     reg=DamageRegression()
     pri=Prior()
 
-
+    history = []
     reg.initialize_from_batch(batch)
     opt=torch.optim.Adam(list(like.parameters())+list(reg.parameters())+list(pri.parameters()),lr=lr)
     #total param??
@@ -118,11 +120,18 @@ def train(batch, *,seed=0,epochs=3000,lr=0.02):
         opt.zero_grad() #기울기 누적 초기화
         loss.backward()
         opt.step()
-        
+
+        loss_val = float(loss.item())               # ← 추가
+        history.append({                            # ← 추가
+            "epoch": epoch,
+            "nll_total": loss_val,
+            "nll_per_row": loss_val / batch.batch_size,
+        })
+
         if epoch%100==0:
             print(f"{epoch}번째 학습=> loss :{loss}")
 
-    return reg,like,pri
+    return reg,like,pri,pd.DataFrame(history)
 
 
 
@@ -133,7 +142,9 @@ if __name__ == "__main__":
     eval_gt = load_eval_ground_truth(GT_PATH, batch)
     print(f"batch {batch.batch_size}행 / 평가 GT {eval_gt.batch_size}행 ({EVAL_EVENT_NAME})")
 
-    reg, like, pri = train(batch=batch)
+    reg, like, pri, hist = train(batch=batch)
+    save_loss_history(hist)
+    dump_params(reg,like,pri)
 
     with torch.no_grad():                        # ← grad 안 만듦
         out_r = reg(batch)

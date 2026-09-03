@@ -71,9 +71,21 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
         ("reg", "_gamma_ls_unconstrained", "gamma_LS", CHANNEL_IDX,    CHANNEL_LABELS,     "softplus"),
         ("reg", "_gamma_lq_unconstrained", "gamma_LQ", CHANNEL_IDX,    CHANNEL_LABELS,     "softplus"),
         ("lik", "_phi_unconstrained",      "phi_c",    CHANNEL_IDX,    CHANNEL_LABELS,     "softplus"),
-        ("pri", "a",                       "a",        [0, 1],         ["LS", "LQ"],       "none"),
-        ("pri", "b",                       "b",        [0, 1],         ["LS", "LQ"],       "none"),
     ]
+
+    # Prior는 mode에 따라 파라미터 이름과 변환이 달라진다.
+    mode = getattr(pri, "mode", "free")
+    if mode == "free":
+        spec += [
+            ("pri", "a", "a", [0, 1], ["LS", "LQ"], "none"),
+            ("pri", "b", "b", [0, 1], ["LS", "LQ"], "none"),
+        ]
+    elif mode == "bounded":
+        spec += [
+            ("pri", "_a_raw", "a", [0, 1], ["LS", "LQ"], f"bounded[{pri.A_MIN},{pri.A_MAX}]"),
+            ("pri", "_b_raw", "b", [0, 1], ["LS", "LQ"], f"bounded[{pri.B_MIN},{pri.B_MAX}]"),
+        ]
+    # mode == "fixed"이면 a=1, b=0은 학습 파라미터가 아니므로 아래에서 고정행으로 넣는다.
     mods = {"reg": reg, "lik": like, "pri": pri}
     named = {k: dict(m.named_parameters()) for k, m in mods.items()}
 
@@ -86,7 +98,13 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
             )
 
         raw = named[mod_key][pname].detach()
-        val = F.softplus(raw) if transform == "softplus" else raw
+        if transform == "softplus":
+            val = F.softplus(raw)
+        elif transform.startswith("bounded"):
+            # prior의 a, b는 sigmoid 재파라미터화라 raw와 실제 값이 다르다.
+            val = (pri.a_value if pname == "_a_raw" else pri.b_value).detach()
+        else:
+            val = raw
 
         raw_np, val_np = raw.cpu().numpy(), val.cpu().numpy()
         if not (raw_np.size == len(labels) == len(idxs)):
@@ -111,9 +129,22 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
         "raw_value": 0.0, "value": 0.0,
     })
 
-    if total != EXPECTED_NUM_PARAMS:
+    if mode == "fixed":
+        # 학습 대상이 아니지만 어떤 값이 쓰였는지는 남겨야 재현이 된다.
+        for i, lab in enumerate(["LS", "LQ"]):
+            for group, value in (("a", 1.0), ("b", 0.0)):
+                rows.append({
+                    "module": "pri", "group": group, "param": group,
+                    "idx": i, "label": lab, "transform": "fixed(mode=fixed)",
+                    "raw_value": value, "value": value,
+                })
+
+    # 실제 optimizer가 들고 가는 파라미터 수와 대조한다.
+    # 상수로 박아두면 prior mode를 바꿀 때마다 어긋난다.
+    actual = sum(p.numel() for m in mods.values() for p in m.parameters())
+    if total != actual:
         raise ValueError(
-            f"학습 파라미터 수가 {EXPECTED_NUM_PARAMS}이 아닙니다: {total}"
+            f"열거한 파라미터 수({total})가 실제 학습 파라미터 수({actual})와 다릅니다."
         )
 
     df = pd.DataFrame(rows)
@@ -124,19 +155,25 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
     ).reset_index(drop=True)
 
     df.to_csv(path, index=False, encoding="utf-8-sig")
-    print(f"저장: {path}  (학습 {total}개 + 기준이벤트 1개 = {len(df)}행)")
+    print(f"저장: {path}  (학습 {total}개 / 고정 {len(df) - total}개 / 합 {len(df)}행)")
     return df
 
 
-def save_loss_history(hist_df, dir_="outputs"):
+def save_loss_history(hist_df, dir_="outputs", tag=""):
     """에폭별 loss를 CSV와 PNG로 저장한다.
 
-    hist_df 컬럼: epoch, nll_total, nll_per_row
+    hist_df 컬럼: epoch, nll_total, nll_per_row, penalty, loss_total
+        nll_total  : 데이터 항만. 정규화 계수가 달라도 이 값끼리는 비교할 수 있다.
+        penalty    : lam_gamma * sum(gamma^2)
+        loss_total : nll_total + penalty. 실제로 미분되는 값.
+
+    tag가 있으면 파일명 뒤에 붙어 여러 설정의 결과가 서로 덮이지 않는다.
     """
     Path(dir_).mkdir(parents=True, exist_ok=True)
 
-    csv_path = f"{dir_}/loss_history.csv"
-    png_path = f"{dir_}/loss_curve.png"
+    sfx = f"_{tag}" if tag else ""
+    csv_path = f"{dir_}/loss_history{sfx}.csv"
+    png_path = f"{dir_}/loss_curve{sfx}.png"
     hist_df.to_csv(csv_path, index=False, encoding="utf-8-sig")
 
     fig, ax = plt.subplots(1, 2, figsize=(11, 4))

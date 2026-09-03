@@ -16,7 +16,7 @@ def infer(log_joint:Tensor, log_Py: Tensor):
     출력:  p_ls [B], p_lq [B]
     """
 
-    log_p_ls=torch.logsumexp(log_joint[:,LS_ON],dim=-1)/log_Py
-    log_p_lq=torch.logsumexp(log_joint[:,LQ_ON],dim=-1)/log_Py
+    log_p_ls=torch.logsumexp(log_joint[:,LS_ON],dim=-1)-log_Py
+    log_p_lq=torch.logsumexp(log_joint[:,LQ_ON],dim=-1)-log_Py
 
     return exp(log_p_ls),exp(log_p_lq)

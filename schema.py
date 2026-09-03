@@ -125,16 +125,18 @@ NUM_STATES: int = len(LATENT_STATES)
 
 # 실제 두 XLSX의 이벤트 시트 순서다.
 #
-# event_idx는 0~7을 사용한다.
+# 기존 event_idx 0~7의 의미와 reference_event_idx=0(2004 니가타)을
+# 보존하기 위해 새로 추가된 2000 돗토리는 맨 뒤 index 8에 둔다.
 EVENTS: tuple[str, ...] = (
-    "2004 니카타현주에쓰",
-    "2007 니카타현주에쓰오키",
+    "2004 니가타현주에쓰",
+    "2007 니가타현주에쓰오키",
     "2008 이와테미야기",
     "2016 구마모토",
     "2018 오사카",
     "2018 훗카이도",
     "2021 후쿠시마",
     "2024 노토반도",
+    "2000 돗토리",
 )
 
 NUM_EVENTS: int = len(EVENTS)
@@ -158,16 +160,17 @@ INDEX_TO_EVENT: dict[int, str] = {
 
 # 현재 실제 파일 상태를 점검하기 위한 기대 행 수다.
 #
-# 모델 batch size를 382로 고정하는 값은 아니다.
+# 모델 batch size를 특정 값으로 고정하는 용도가 아니라
+# 현재 실제 파일 상태가 예상과 맞는지 점검하기 위한 값이다.
 #
-# 현재 실제 자료:
+# 최신 실제 자료:
 #
-# 통계 원본             403행
-# USGS 존재/매칭        383행
-# 최종 모델 사용        382행
-EXPECTED_NUM_STATS_ROWS: int = 403
-EXPECTED_NUM_USGS_MATCHED_ROWS: int = 383
-EXPECTED_NUM_MODEL_ROWS: int = 382
+# 통계 원본             439행
+# USGS 존재/매칭        419행
+# 최종 모델 사용        418행
+EXPECTED_NUM_STATS_ROWS: int = 439
+EXPECTED_NUM_USGS_MATCHED_ROWS: int = 419
+EXPECTED_NUM_MODEL_ROWS: int = 418
 
 
 # ============================================================
@@ -257,7 +260,7 @@ class PilotABatch:
 
     event_idx
         [B] long
-        이벤트 index 0~7
+        이벤트 index 0~8
 
     obs_mask
         [B, 6] bool
@@ -308,13 +311,13 @@ class PilotABatch:
         현재 batch의 행 수를 반환한다.
 
         예:
-            y.shape == [382, 6]
+            y.shape == [B, 6]
 
         이면:
 
-            batch_size == 382
+            batch_size == B
 
-        B=382를 하드코딩하지 않고
+        특정 행 수를 하드코딩하지 않고
         실제 Tensor 크기를 기준으로 계산한다.
         """
         return int(self.y.shape[0])
@@ -600,8 +603,8 @@ class EvalGroundTruthBatch:
     현재 GT 파일:
         LS_LF 데이터자료.xlsx
 
-    현재 평가 이벤트:
-        2018 훗카이도
+    평가 대상:
+        GT가 준비된 여러 이벤트
 
 
     ----------------------------------------------------------
@@ -615,7 +618,7 @@ class EvalGroundTruthBatch:
         해당 평가 시정촌이 위치한 행 index
 
         예:
-            전체 posterior_ls [382]
+            전체 posterior_ls [B_model]
 
             posterior_ls[
                 eval_gt.model_row_idx
@@ -629,18 +632,20 @@ class EvalGroundTruthBatch:
 
         산사태 GT 0/1
 
-        현재 확정 규칙:
+        확정 규칙:
 
-            ls_area_ha > 0
-                → 1
+            ls_flag 컬럼이 있으면 ls_flag를 우선 사용
+                1  → 1
+                0  → 0
+                NA → Tensor에는 placeholder 0
+                     ls_eval_mask=False
 
-            ls_area_ha == 0
-                → 0
-
-            ls_area_ha NaN / NA
-                → Tensor에는 placeholder 0
-                → ls_eval_mask=False
-                → 실제 LS 평가에서는 제외
+            ls_flag 컬럼이 없으면 ls_area_ha 사용
+                > 0 → 1
+                = 0 → 0
+                NA  → Tensor에는 placeholder 0
+                      ls_eval_mask=False
+                < 0 → 데이터 오류
 
 
     gt_lq
@@ -648,30 +653,41 @@ class EvalGroundTruthBatch:
 
         액상화 GT 0/1
 
-        현재 확정 규칙:
+        확정 규칙:
 
-            jshis_flag == 1
-                → 1
+            jshis_flag 컬럼이 있으면 우선 사용
+                1  → 1
+                0  → 0
+                NA → 0, lq_eval_mask=True
 
-            jshis_flag == 0
-                → 0
-
-            jshis_flag NaN / NA
-                → 0
+            jshis_flag가 없으면 lq_flag 사용
+                1  → 1
+                0  → 0
+                NA → Tensor에는 placeholder 0
+                     lq_eval_mask=False
 
 
     ls_eval_mask
         [B_eval] bool
 
-        LS GT가 실제 존재하는지 나타낸다.
-
         True
-            LS GT가 0 또는 양수로 실제 존재
-            → LS 평가에 사용
+            LS GT가 0/1로 확정되어 LS 평가에 사용
 
         False
-            LS 원본이 NaN / NA
-            → LS 평가에서 제외
+            LS 원본이 NA
+            → gt_ls의 placeholder 0은 평가에 사용하지 않음
+
+
+    lq_eval_mask
+        [B_eval] bool
+
+        True
+            LQ GT가 0/1로 확정되어 LQ 평가에 사용
+            jshis_flag의 NA는 규칙상 0으로 확정되므로 True
+
+        False
+            일반 lq_flag가 NA
+            → gt_lq의 placeholder 0은 평가에 사용하지 않음
 
 
     event_idx
@@ -689,9 +705,12 @@ class EvalGroundTruthBatch:
     gt_ls: Tensor
     gt_lq: Tensor
 
-    # False이면 LS 원본이 NaN/NA이므로
-    # LS 성능평가에서 해당 행을 제외한다.
+    # False이면 LS 원본이 NA이므로 LS 성능평가에서 제외한다.
     ls_eval_mask: Tensor
+
+    # False이면 일반 lq_flag 원본이 NA이므로 LQ 성능평가에서 제외한다.
+    # jshis_flag의 NA는 0으로 확정되므로 True다.
+    lq_eval_mask: Tensor
 
     event_idx: Tensor
 
@@ -704,11 +723,13 @@ class EvalGroundTruthBatch:
         현재 평가용 GT 행 수를 반환한다.
 
         주의:
-        LS에서 실제 평가 가능한 행 수와는 다를 수 있다.
+        LS/LQ에서 실제 평가 가능한 행 수와는 다를 수 있다.
 
-        LS 실제 평가 행 수는:
+        실제 평가 행 수는:
 
-            self.ls_eval_mask.sum()
+            LS    = self.ls_eval_mask.sum()
+            LQ    = self.lq_eval_mask.sum()
+            Joint = (self.ls_eval_mask & self.lq_eval_mask).sum()
 
         으로 확인한다.
         """
@@ -743,14 +764,14 @@ class EvalGroundTruthBatch:
 
 
         주의:
-        LS가 NaN이었던 행은
-        gt_ls에 placeholder 0이 들어가 있다.
+        LS 또는 LQ가 NA인 행에는 Tensor 저장을 위한 placeholder 0이
+        들어갈 수 있다.
 
         따라서 joint state 평가 시에는 반드시
 
-            ls_eval_mask == True
+            ls_eval_mask & lq_eval_mask
 
-        인 행만 사용해야 한다.
+        가 True인 행만 사용해야 한다.
         """
 
         return self.gt_ls + (2 * self.gt_lq)
@@ -801,22 +822,27 @@ class EvalGroundTruthBatch:
 
 
         # ----------------------------------------------------
-        # LS 평가 mask 검사
+        # LS / LQ 평가 mask 검사
         # ----------------------------------------------------
 
-        if tuple(self.ls_eval_mask.shape) != expected_shape:
-            raise ValueError(
-                "ls_eval_mask shape 오류: "
-                f"expected={expected_shape}, "
-                f"actual={tuple(self.ls_eval_mask.shape)}"
-            )
+        for name, mask in {
+            "ls_eval_mask": self.ls_eval_mask,
+            "lq_eval_mask": self.lq_eval_mask,
+        }.items():
 
-        if self.ls_eval_mask.dtype != torch.bool:
-            raise TypeError(
-                "ls_eval_mask dtype 오류: "
-                f"expected={torch.bool}, "
-                f"actual={self.ls_eval_mask.dtype}"
-            )
+            if tuple(mask.shape) != expected_shape:
+                raise ValueError(
+                    f"{name} shape 오류: "
+                    f"expected={expected_shape}, "
+                    f"actual={tuple(mask.shape)}"
+                )
+
+            if mask.dtype != torch.bool:
+                raise TypeError(
+                    f"{name} dtype 오류: "
+                    f"expected={torch.bool}, "
+                    f"actual={mask.dtype}"
+                )
 
 
         # ----------------------------------------------------
@@ -839,7 +865,7 @@ class EvalGroundTruthBatch:
         # GT 라벨 검사
         # ----------------------------------------------------
 
-        # gt_ls의 LS NaN 위치는 placeholder 0이므로
+        # LS/LQ의 평가 제외 위치에는 placeholder 0이 들어갈 수 있으므로
         # Tensor 자체에는 여전히 0/1만 존재한다.
         for name, tensor in {
             "gt_ls": self.gt_ls,

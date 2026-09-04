@@ -8,7 +8,7 @@ from regression import DamageRegression
 from prior import Prior
 from marginal import marginalize
 from infer import infer
-from loader import EVAL_EVENT_NAME, load_eval_ground_truth, load_pilot_a_batch
+from loader import load_eval_ground_truth, load_pilot_a_batch
 from eval import evaluate
 from schema import INDEX_TO_EVENT, EvalGroundTruthBatch, PilotABatch
 
@@ -16,7 +16,7 @@ from reporting import dump_params, save_loss_history
 
 STATS_PATH = "raw/재난프로젝트_시정촌별_통계데이터.xlsx"
 USGS_PATH = "raw/재난프로젝트_시정촌별_USGS.xlsx"
-GT_PATH = "validation/LS_LF_데이터자료.xlsx"
+GT_PATH = "validation/LS_LF 데이터자료.xlsx"
 
 
 def save_predictions(batch, p_ls, p_lq, path="outputs/predictions.csv"):
@@ -44,6 +44,8 @@ def to_eval_pred(batch: PilotABatch, p_ls, p_lq, eval_gt: EvalGroundTruthBatch):
     idx = eval_gt.model_row_idx
 
     return pd.DataFrame({
+        # 같은 시정촌코드가 여러 이벤트에 나오므로 event_idx까지 있어야 join이 성립한다.
+        "event_idx": eval_gt.event_idx.tolist(),
         "muni_code": list(eval_gt.municipality_code),
         "p_ls": p_ls[idx].detach().numpy(),
         "p_lq": p_lq[idx].detach().numpy(),
@@ -53,10 +55,14 @@ def to_eval_pred(batch: PilotABatch, p_ls, p_lq, eval_gt: EvalGroundTruthBatch):
 def to_eval_gt(eval_gt: EvalGroundTruthBatch):
     """EvalGroundTruthBatch를 eval.py가 쓰는 컬럼명으로 바꾼다."""
     return pd.DataFrame({
+        "event_idx": eval_gt.event_idx.tolist(),
+        "event": [INDEX_TO_EVENT[i] for i in eval_gt.event_idx.tolist()],
         "muni_code": list(eval_gt.municipality_code),
         "ls_true": eval_gt.gt_ls.tolist(),
         "lq_true": eval_gt.gt_lq.tolist(),
+        # LS와 LQ는 원본 NA 처리 규칙이 달라 평가 가능한 행이 서로 다르다.
         "ls_eval_mask": eval_gt.ls_eval_mask.tolist(),
+        "lq_eval_mask": eval_gt.lq_eval_mask.tolist(),
     })
 
 
@@ -64,16 +70,21 @@ def save_eval(result, gt_df, dir_="outputs", tag=""):
     Path(dir_).mkdir(parents=True, exist_ok=True)
     sfx = f"_{tag}" if tag else ""
 
+    ls_ok = gt_df["ls_eval_mask"].astype(bool)
+    lq_ok = gt_df["lq_eval_mask"].astype(bool)
+
     # ① 요약 — 나중에 여러 실험을 세로로 쌓기 좋게
     summary = pd.DataFrame([{
-        "event": EVAL_EVENT_NAME,
+        "n_events": int(gt_df["event_idx"].nunique()),
         "n": result.n,
         "n_ls": result.n_ls,
+        "n_lq": result.n_lq,
         "mse_ls": result.mse_ls,
         "mse_lq": result.mse_lq,
-        "n_pos_ls": int(gt_df.loc[gt_df["ls_eval_mask"], "ls_true"].sum()),
-        "n_pos_lq": int(gt_df["lq_true"].sum()),
-        "note": "LS는 원본 NA 행 평가 제외(ls_eval_mask), LQ는 NA를 0으로 간주",
+        # 양성 개수도 평가 가능한 행 안에서만 세야 placeholder가 섞이지 않는다.
+        "n_pos_ls": int(gt_df.loc[ls_ok, "ls_true"].sum()),
+        "n_pos_lq": int(gt_df.loc[lq_ok, "lq_true"].sum()),
+        "note": "LS/LQ 각각의 eval_mask로 독립 평가",
     }])
     summary.to_csv(f"{dir_}/eval_summary{sfx}.csv", index=False, encoding="utf-8-sig")
 
@@ -82,13 +93,14 @@ def save_eval(result, gt_df, dir_="outputs", tag=""):
     detail["err_ls"] = (detail["p_ls"] - detail["ls_true"]) ** 2
     detail["err_lq"] = (detail["p_lq"] - detail["lq_true"]) ** 2
 
-    # ls_eval_mask=False인 행의 ls_true는 원본이 NA라서 넣어둔 placeholder 0이다.
-    # 진짜 정답이 아니므로 err_ls를 계산해봐야 의미가 없고, mse_ls에도 안 들어간다.
-    # 파일만 보고 오해하지 않도록 비워둔다.
-    excluded_ls = ~detail["ls_eval_mask"].astype(bool)
-    detail.loc[excluded_ls, ["ls_true", "err_ls"]] = pd.NA
-    # 시정촌코드 순으로 정렬한다. 5자리 고정폭 문자열이라 문자열 정렬이 곧 번호 순이다.
-    detail.sort_values("muni_code").to_csv(
+    # eval_mask=False인 행의 정답은 원본이 NA라서 넣어둔 placeholder 0이다.
+    # 진짜 정답이 아니므로 오차를 계산해봐야 의미가 없고 MSE에도 안 들어간다.
+    # 파일만 보고 오해하지 않도록 LS/LQ 각각 비워둔다.
+    detail.loc[~detail["ls_eval_mask"].astype(bool), ["ls_true", "err_ls"]] = pd.NA
+    detail.loc[~detail["lq_eval_mask"].astype(bool), ["lq_true", "err_lq"]] = pd.NA
+
+    # 이벤트 순, 그 안에서 시정촌코드 순. 코드는 5자리 고정폭이라 문자열 정렬이 곧 번호 순이다.
+    detail.sort_values(["event_idx", "muni_code"]).to_csv(
         f"{dir_}/eval_detail{sfx}.csv", index=False, encoding="utf-8-sig"
     )
     print(f"저장: {dir_}/eval_summary{sfx}.csv, {dir_}/eval_detail{sfx}.csv")
@@ -178,7 +190,8 @@ if __name__ == "__main__":
     # GT는 eval 전용이라 train()에는 넘기지 않는다.
     batch = load_pilot_a_batch(STATS_PATH, USGS_PATH)
     eval_gt = load_eval_ground_truth(GT_PATH, batch)
-    print(f"batch {batch.batch_size}행 / 평가 GT {eval_gt.batch_size}행 ({EVAL_EVENT_NAME})")
+    n_ev = int(eval_gt.event_idx.unique().numel())
+    print(f"batch {batch.batch_size}행 / 평가 GT {eval_gt.batch_size}행 / 이벤트 {n_ev}개")
     print(f"설정: prior_mode={args.prior_mode} / lam_gamma={args.lam_gamma}"
           + (f" / b_bound=±{args.b_bound}" if args.prior_mode == "bounded" else ""))
 
@@ -205,5 +218,5 @@ if __name__ == "__main__":
 
     print(
         f"MSE_LS {result.mse_ls:.4f} (n={result.n_ls}) / "
-        f"MSE_LQ {result.mse_lq:.4f} (n={result.n})"
+        f"MSE_LQ {result.mse_lq:.4f} (n={result.n_lq}) / 전체 {result.n}행"
     )

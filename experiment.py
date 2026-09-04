@@ -24,7 +24,7 @@ import torch
 
 from eval import evaluate
 from infer import infer
-from loader import EVAL_EVENT_NAME, load_eval_ground_truth, load_pilot_a_batch
+from loader import load_eval_ground_truth, load_pilot_a_batch
 from marginal import marginalize
 from reporting import GROUP_ORDER, dump_params
 from train import GT_PATH, STATS_PATH, USGS_PATH, to_eval_gt, to_eval_pred, train
@@ -62,7 +62,7 @@ def run_one(batch, eval_gt, gt_df, *, mode, lam, epochs, seed, b_bound=DEFAULT_B
 
     RUN_DIR.mkdir(parents=True, exist_ok=True)
     dump_params(reg, like, pri, path=str(RUN_DIR / f"params_{tag}.csv"))
-    result.merged.sort_values("muni_code").to_csv(
+    result.merged.sort_values(["event_idx", "muni_code"]).to_csv(
         RUN_DIR / f"eval_detail_{tag}.csv", index=False, encoding="utf-8-sig"
     )
 
@@ -89,6 +89,7 @@ def run_one(batch, eval_gt, gt_df, *, mode, lam, epochs, seed, b_bound=DEFAULT_B
         "mse_ls": result.mse_ls,
         "mse_lq": result.mse_lq,
         "n_ls": result.n_ls,
+        "n_lq": result.n_lq,
         "n": result.n,
         "a_LS": float(a[0]), "b_LS": float(b[0]),
         "a_LQ": float(a[1]), "b_LQ": float(b[1]),
@@ -103,15 +104,16 @@ def run_one(batch, eval_gt, gt_df, *, mode, lam, epochs, seed, b_bound=DEFAULT_B
 
 def baseline_rows(gt_df):
     """모델을 전혀 쓰지 않는 기준선. 이걸 못 넘으면 학습이 의미 없다."""
+    # 모델과 같은 행에서 재야 비교가 성립하므로 베이스라인도 각자의 mask로 자른다.
     ls = gt_df.loc[gt_df["ls_eval_mask"].astype(bool), "ls_true"].to_numpy(float)
-    lq = gt_df["lq_true"].to_numpy(float)
+    lq = gt_df.loc[gt_df["lq_eval_mask"].astype(bool), "lq_true"].to_numpy(float)
 
     def pair(name, p_ls_const, p_lq_const):
         return {
             "prior_mode": name, "lam_gamma": np.nan,
             "mse_ls": float(np.mean((ls - p_ls_const) ** 2)),
             "mse_lq": float(np.mean((lq - p_lq_const) ** 2)),
-            "n_ls": len(ls), "n": len(lq),
+            "n_ls": len(ls), "n_lq": len(lq), "n": len(gt_df),
         }
 
     return [
@@ -158,7 +160,8 @@ def main(*, epochs=3000, seed=0, modes=PRIOR_MODES, lams=LAM_GAMMAS,
     gt_df = to_eval_gt(eval_gt)
     out_csv = OUT_DIR / out_name
 
-    print(f"batch {batch.batch_size}행 / 평가 GT {eval_gt.batch_size}행 ({EVAL_EVENT_NAME})")
+    n_ev = int(eval_gt.event_idx.unique().numel())
+    print(f"batch {batch.batch_size}행 / 평가 GT {eval_gt.batch_size}행 / 이벤트 {n_ev}개")
     print(f"조합 {len(modes) * len(lams)}개 x {epochs}에폭 (bounded의 b 범위 ±{b_bound})")
 
     rows = []

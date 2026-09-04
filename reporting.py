@@ -4,7 +4,7 @@ Pilot A - reporting.py
 교수님 공유용 산출물 두 가지를 만든다.
 
 1) dump_params()       -> outputs/params.csv
-   학습된 41개 파라미터 + 기준 이벤트 1개(고정 0)를 저장한다.
+   학습된 파라미터 + 기준 이벤트 1개(고정 0)를 저장한다.
 
    컬럼:
      module      reg / lik / pri
@@ -12,7 +12,7 @@ Pilot A - reporting.py
      param       코드상의 nn.Parameter 이름
      idx         채널 파라미터는 채널번호 0~5,
                  alpha_e는 EVENTS 번호 0~7, a/b는 0=LS 1=LQ.
-                 ※ alpha_event_free는 코드상 길이가 7이지만 여기서는
+                 ※ alpha_event_free는 코드상 길이가 NUM_EVENTS-1이지만 여기서는
                    벡터 위치가 아니라 이벤트 번호를 적는다.
                    기준 이벤트가 빠져 번호가 건너뛸 수 있다.
      label       사람이 읽는 이름
@@ -48,7 +48,10 @@ from schema import (
 CHANNEL_LABELS = [DAMAGE_COLUMN_MAP[c] for c in CHANNELS]
 CHANNEL_IDX = list(range(len(CHANNEL_LABELS)))
 
-EXPECTED_NUM_PARAMS = 41
+# 이벤트가 9개가 되면서 alpha_event_free가 7 -> 8이 되어 41 -> 42가 되었다.
+# prior_mode="fixed"이면 a, b 4개가 빠져 38개다.
+# 실제 검증은 아래에서 optimizer가 들고 있는 수와 직접 대조한다.
+EXPECTED_NUM_PARAMS = 42
 
 # 설계식에 나오는 순서대로 정렬하기 위한 기준
 GROUP_ORDER = ["alpha_c", "alpha_e", "beta_c", "gamma_LS", "gamma_LQ", "phi_c", "a", "b"]
@@ -59,7 +62,7 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
     Path(path).parent.mkdir(parents=True, exist_ok=True)
 
     ref = reg.reference_event_idx
-    # alpha_event_free는 기준 이벤트를 제외한 7개다.
+    # alpha_event_free는 기준 이벤트를 제외한 NUM_EVENTS-1개다.
     # idx에는 벡터 위치가 아니라 EVENTS 번호를 적어야 기준 행과 같은 자로 읽힌다.
     event_free_idx = [i for i in range(NUM_EVENTS) if i != ref]
     event_free_labels = [INDEX_TO_EVENT[i] for i in event_free_idx]

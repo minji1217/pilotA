@@ -322,6 +322,9 @@ class PilotABatch:
     E: Tensor
 
     pgv: Tensor
+    # 원본 0~1 비율이 아닌 loader.py에서 표준화한 값 저장
+    z_wood: Tensor
+    z_mtn: Tensor 
     pi_ls: Tensor
     pi_lq: Tensor
 

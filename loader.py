@@ -10,9 +10,11 @@ Pilot A - data/loader.py
 4. 피해 6채널의 결측을 y=0 placeholder + obs_mask=False로 분리한다.
 5. 같은 이벤트 안에서 5자리 시정촌코드로 통계와 USGS를 join한다.
 6. LS_prior(평균), LQ_prior(평균), PGV와 Exposure가 모두 있는 행만 남긴다.
-7. population / households_general로 E를 만든다.
-8. PyTorch PilotABatch로 변환하고 batch.validate()를 실행한다.
-9. eval용 GT가 필요하면 LS_LF 데이터자료.xlsx를 읽어 EvalGroundTruthBatch를 별도로 만든다.
+7. 후속실험 1 취약성 데이터의 wooden_ratio / mountain_ratio를 (event_idx, 시정촌코드)로 매칭
+8. 최종 모델 행 기준으로 wooden_ratio / mountain_ratio를 표준화해 z_wood / z_mtn 만든다
+9. population / households_general로 E를 만든다.
+10. PyTorch PilotABatch로 변환하고 batch.validate()를 실행한다.
+11. eval용 GT가 필요하면 LS_LF 데이터자료.xlsx를 읽어 EvalGroundTruthBatch를 별도로 만든다.
 
 중요: 시정촌코드는 계산용 숫자가 아니라 ID이므로 int로 바꾸어 보관하지 않는다.
 GT는 모델 입력이 아니므로 PilotABatch에 넣지 않고 EvalGroundTruthBatch로 분리한다.
@@ -40,8 +42,10 @@ from schema import (
     INDEX_DTYPE,
     MUNICIPALITY_CODE_COLUMN,
     MUNICIPALITY_CODE_WIDTH,
+    MOUNTAIN_RATIO_COLUMN,
     POPULATION_COLUMN,
     USGS_LQ_PRIOR_COLUMN,
+    WOODEN_RATIO_COLUMN,
     USGS_LS_PRIOR_COLUMN,
     USGS_PGV_COLUMN,
     EvalGroundTruthBatch,
@@ -64,6 +68,13 @@ USGS_REQUIRED_COLUMNS: tuple[str, ...] = (
     USGS_LQ_PRIOR_COLUMN,
     USGS_PGV_COLUMN,
 )
+
+# 후속실험 1 취약성 파일에서 사용하는 컬럼명
+# 식별 key는 (event_idx, muni_code)다.
+# 시정촌코드는 기존 모델과 동일하게 5자리 문자열로 정규화한다.
+VULNERABILITY_EVENT_IDX_COLUMN: str = "event_idx"
+VULNERABILITY_EVENT_NAME_COLUMN: str = "event"
+VULNERABILITY_CODE_COLUMN: str = "muni_code"
 
 
 # GT 파일 컬럼명이다.
@@ -388,6 +399,239 @@ def _merge_event(
 
     return model_df.reset_index(drop=True), excluded_df.reset_index(drop=True)
 
+def _read_vulnerability_table(path: str | Path) -> pd.DataFrame:
+    """
+    후속실험 1의 시정촌 취약성 파일을 읽어 표준 형태로 정리한다.
+
+    필요한 값:
+    - event_idx 또는 event
+    - muni_code 또는 시정촌코드
+    - wooden_ratio
+    - mountain_ratio
+
+    최종 반환 key:
+    - event_idx
+    - 시정촌코드(5자리 문자열)
+    - wooden_ratio
+    - mountain_ratio
+
+    비율은 데이터 수집/합병/결측 대체가 끝난 원값(0~1)을 기대한다.
+    표준화는 이 함수가 아니라 최종 모델 418행과 매칭한 뒤 수행한다.
+    """
+    path = Path(path)
+
+    if not path.exists():
+        raise FileNotFoundError(
+            f"취약성 데이터 파일을 찾을 수 없습니다: {path}"
+        )
+
+    suffix = path.suffix.lower()
+    if suffix == ".csv":
+        df = pd.read_csv(path)
+    elif suffix in {".xlsx", ".xls"}:
+        df = pd.read_excel(path)
+    else:
+        raise ValueError(
+            "취약성 데이터는 CSV 또는 Excel 파일이어야 합니다: "
+            f"{path}"
+        )
+
+    df = df.copy()
+
+    # ----------------------------------------------------
+    # 시정촌코드
+    # ----------------------------------------------------
+    if VULNERABILITY_CODE_COLUMN in df.columns:
+        raw_code = df[VULNERABILITY_CODE_COLUMN]
+    elif MUNICIPALITY_CODE_COLUMN in df.columns:
+        raw_code = df[MUNICIPALITY_CODE_COLUMN]
+    else:
+        raise ValueError(
+            "취약성 데이터에 시정촌코드 컬럼이 없습니다. "
+            f"'{VULNERABILITY_CODE_COLUMN}' 또는 "
+            f"'{MUNICIPALITY_CODE_COLUMN}'가 필요합니다."
+        )
+
+    normalized_code = raw_code.map(_normalize_municipality_code)
+    if normalized_code.isna().any():
+        bad_values = raw_code.loc[normalized_code.isna()].astype(str).tolist()
+        raise ValueError(
+            "취약성 데이터에 정상적인 5자리 시정촌코드로 변환할 수 없는 값이 있습니다: "
+            f"{bad_values[:10]}"
+        )
+
+    # ----------------------------------------------------
+    # event_idx
+    # ----------------------------------------------------
+    if VULNERABILITY_EVENT_IDX_COLUMN in df.columns:
+        raw_event_idx = pd.to_numeric(
+            df[VULNERABILITY_EVENT_IDX_COLUMN],
+            errors="coerce",
+        )
+
+        invalid_event_idx = (
+            raw_event_idx.isna()
+            | (raw_event_idx % 1 != 0)
+            | (raw_event_idx < 0)
+            | (raw_event_idx >= len(EVENTS))
+        )
+        if invalid_event_idx.any():
+            bad_values = df.loc[
+                invalid_event_idx,
+                VULNERABILITY_EVENT_IDX_COLUMN,
+            ].astype(str).tolist()
+            raise ValueError(
+                "취약성 데이터의 event_idx가 유효하지 않습니다: "
+                f"{bad_values[:10]}"
+            )
+
+        event_idx = raw_event_idx.astype("int64")
+
+    elif VULNERABILITY_EVENT_NAME_COLUMN in df.columns:
+        event_name = df[VULNERABILITY_EVENT_NAME_COLUMN].astype("string").str.strip()
+        event_idx = event_name.map(EVENT_TO_INDEX)
+
+        if event_idx.isna().any():
+            bad_values = event_name.loc[event_idx.isna()].dropna().unique().tolist()
+            raise ValueError(
+                "취약성 데이터에 EVENTS와 일치하지 않는 event 이름이 있습니다: "
+                f"{bad_values[:10]}"
+            )
+
+        event_idx = event_idx.astype("int64")
+
+    else:
+        raise ValueError(
+            "취약성 데이터에는 'event_idx' 또는 'event' 컬럼이 필요합니다."
+        )
+
+    # ----------------------------------------------------
+    # 취약성 비율
+    # ----------------------------------------------------
+    missing_ratio_columns = [
+        column
+        for column in (WOODEN_RATIO_COLUMN, MOUNTAIN_RATIO_COLUMN)
+        if column not in df.columns
+    ]
+    if missing_ratio_columns:
+        raise ValueError(
+            "취약성 데이터에 필요한 비율 컬럼이 없습니다: "
+            f"{missing_ratio_columns}"
+        )
+
+    result = pd.DataFrame(
+        {
+            "event_idx": event_idx,
+            MUNICIPALITY_CODE_COLUMN: normalized_code.astype(str),
+            WOODEN_RATIO_COLUMN: pd.to_numeric(
+                df[WOODEN_RATIO_COLUMN],
+                errors="coerce",
+            ).astype("float64"),
+            MOUNTAIN_RATIO_COLUMN: pd.to_numeric(
+                df[MOUNTAIN_RATIO_COLUMN],
+                errors="coerce",
+            ).astype("float64"),
+        }
+    )
+
+    for column in (WOODEN_RATIO_COLUMN, MOUNTAIN_RATIO_COLUMN):
+        if result[column].isna().any():
+            bad_rows = result.loc[
+                result[column].isna(),
+                ["event_idx", MUNICIPALITY_CODE_COLUMN],
+            ].to_dict("records")
+            raise ValueError(
+                f"취약성 데이터의 {column}에 결측/비숫자 값이 남아 있습니다: "
+                f"{bad_rows[:10]}"
+            )
+
+        out_of_range = (result[column] < 0) | (result[column] > 1)
+        if out_of_range.any():
+            bad_rows = result.loc[
+                out_of_range,
+                ["event_idx", MUNICIPALITY_CODE_COLUMN, column],
+            ].to_dict("records")
+            raise ValueError(
+                f"취약성 데이터의 {column}은 0~1 범위여야 합니다: "
+                f"{bad_rows[:10]}"
+            )
+
+    duplicate_key = result.duplicated(
+        subset=["event_idx", MUNICIPALITY_CODE_COLUMN],
+        keep=False,
+    )
+    if duplicate_key.any():
+        bad_rows = result.loc[
+            duplicate_key,
+            ["event_idx", MUNICIPALITY_CODE_COLUMN],
+        ].to_dict("records")
+        raise ValueError(
+            "취약성 데이터에 중복 (event_idx, 시정촌코드)가 있습니다: "
+            f"{bad_rows[:10]}"
+        )
+
+    return result.reset_index(drop=True)
+
+
+def _attach_vulnerability_covariates(
+    model_df: pd.DataFrame,
+    vulnerability_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    최종 모델 행에 후속실험 1 취약성 비율을 붙이고 표준화한다.
+
+    중요한 순서:
+    1. 기존 통계+USGS 조건으로 최종 모델 행을 먼저 확정한다.
+    2. (event_idx, 시정촌코드)로 취약성 데이터를 매칭한다.
+    3. 매칭된 최종 모델 행 전체를 기준으로 mean/std를 계산한다.
+    4. z_wood / z_mtn을 만든다.
+
+    즉 CSV에 저장된 0~1 원비율 자체를 회귀식에 넣지 않는다.
+    """
+    result = model_df.merge(
+        vulnerability_df,
+        on=["event_idx", MUNICIPALITY_CODE_COLUMN],
+        how="left",
+        validate="one_to_one",
+        indicator="_vulnerability_merge",
+    )
+
+    missing_match = result["_vulnerability_merge"].ne("both")
+    if missing_match.any():
+        bad_rows = result.loc[
+            missing_match,
+            ["event_idx", MUNICIPALITY_CODE_COLUMN],
+        ].to_dict("records")
+        raise ValueError(
+            "최종 모델 행 중 취약성 데이터와 매칭되지 않는 시정촌이 있습니다: "
+            f"{bad_rows[:10]}"
+        )
+
+    result = result.drop(columns="_vulnerability_merge")
+
+    # 후속실험 1에서는 결측 대체까지 끝난 ratio 파일을 입력으로 기대한다.
+    # 따라서 모델 행에 붙인 뒤에도 결측이 있으면 조용히 0으로 채우지 않고 오류로 중단한다.
+    for raw_column, z_column in (
+        (WOODEN_RATIO_COLUMN, "z_wood"),
+        (MOUNTAIN_RATIO_COLUMN, "z_mtn"),
+    ):
+        mean = float(result[raw_column].mean())
+        std = float(result[raw_column].std())
+
+        if not (pd.notna(mean) and pd.notna(std)):
+            raise ValueError(
+                f"{raw_column} 표준화를 위한 mean/std 계산에 실패했습니다."
+            )
+        if std <= 0:
+            raise ValueError(
+                f"{raw_column}의 표준편차가 0 이하라 표준화할 수 없습니다: std={std}"
+            )
+
+        result[z_column] = (
+            (result[raw_column] - mean) / std
+        ).astype("float64")
+
+    return result
 
 def _add_exposure_columns(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -427,6 +671,14 @@ def _to_batch(df: pd.DataFrame) -> PilotABatch:
         pgv=torch.tensor(
             df["pgv"].to_numpy(dtype="float64"),
             dtype=DTYPE,
+        ),
+        z_wood = torch.tensor(
+            df["z_wood"].to_numpy(dtype="float64"),
+            dtype = DTYPE, 
+        ),
+        z_mtn = torch.tensor(
+            df["z_mtn"].to_numpy(dtype="float64"),
+            dtype=DTYPE, 
         ),
         pi_ls=torch.tensor(
             df["pi_ls"].to_numpy(dtype="float64"),
@@ -500,6 +752,7 @@ def _load_all_events(
 def load_pilot_a_batch(
     stats_path: str | Path,
     usgs_path: str | Path,
+    vulnerability_path: str | Path,
     *,
     strict_expected_rows: bool = True,
 ) -> PilotABatch:
@@ -509,22 +762,39 @@ def load_pilot_a_batch(
     입력:
     - stats_path: 재난프로젝트_시정촌별_통계데이터.xlsx
     - usgs_path: 재난프로젝트_시정촌별_USGS.xlsx
+    - vulnerability_path: 후속실험 1 시정촌 취약성 데이터(CSV/XLSX)
+      필수 값: event_idx 또는 event, muni_code 또는 시정촌코드,
+               wooden_ratio, mountain_ratio
     - strict_expected_rows: True이면 현재 확인한 439/419/418 행 수가 맞는지 검사
 
     출력: PilotABatch
     """
     stats_path = Path(stats_path)
     usgs_path = Path(usgs_path)
+    vulnerability_path = Path(vulnerability_path)
 
     if not stats_path.exists():
         raise FileNotFoundError(f"통계 XLSX를 찾을 수 없습니다: {stats_path}")
     if not usgs_path.exists():
         raise FileNotFoundError(f"USGS XLSX를 찾을 수 없습니다: {usgs_path}")
-
+    if not vulnerability_path.exists():
+        raise FileNotFoundError(
+            f"취약성 데이터 파일을 찾을 수 없습니다: {vulnerability_path}"
+        )
+    
     model_df, _, total_stats_rows, total_usgs_matched_rows = _load_all_events(
         stats_path,
         usgs_path,
     )
+
+    # 통계+USGS 기준으로 최종 모델 행을 먼저 만든 뒤,
+    # 그 행들에만 취약성 데이터를 붙여 전체 모델 행 기준으로 표준화한다.
+    vulnerability_df = _read_vulnerability_table(vulnerability_path)
+    model_df = _attach_vulnerability_covariates(
+        model_df,
+        vulnerability_df,
+    )
+
 
     model_df = _add_exposure_columns(model_df)
 
@@ -910,6 +1180,7 @@ def load_eval_ground_truth(
 def load_eval_inputs(
     stats_path: str | Path,
     usgs_path: str | Path,
+    vulnerability_path: str | Path,
     gt_path: str | Path,
     *,
     strict_expected_rows: bool = True,
@@ -924,6 +1195,7 @@ def load_eval_inputs(
     model_batch = load_pilot_a_batch(
         stats_path,
         usgs_path,
+        vulnerability_path,
         strict_expected_rows=strict_expected_rows,
     )
     eval_gt = load_eval_ground_truth(gt_path, model_batch)
@@ -941,6 +1213,8 @@ if __name__ == "__main__":
     print("y:", tuple(batch.y.shape))
     print("E:", tuple(batch.E.shape))
     print("pgv:", tuple(batch.pgv.shape))
+    print("z_wood:", tuple(batch.z_wood.shape))
+    print("z_mtn:", tuple(batch.z_mtn.shape))
     print("pi_ls:", tuple(batch.pi_ls.shape))
     print("pi_lq:", tuple(batch.pi_lq.shape))
     print("event_idx:", tuple(batch.event_idx.shape))

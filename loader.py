@@ -9,7 +9,7 @@ Pilot A - data/loader.py
 3. 시정촌코드를 5자리 문자열로 정규화한다. 예: 1581 -> "01581"
 4. 피해 6채널의 결측을 y=0 placeholder + obs_mask=False로 분리한다.
 5. 같은 이벤트 안에서 5자리 시정촌코드로 통계와 USGS를 join한다.
-6. LS_prior(평균), LQ_prior(평균), PGV와 Exposure가 모두 있는 행만 남긴다.
+6. LS_prior(평균), LQ_prior(최대), PGV와 Exposure가 모두 있는 행만 남긴다.
 7. population / households_general로 E를 만든다.
 8. PyTorch PilotABatch로 변환하고 batch.validate()를 실행한다.
 9. eval용 GT가 필요하면 LS_LF 데이터자료.xlsx를 읽어 EvalGroundTruthBatch를 별도로 만든다.
@@ -57,13 +57,15 @@ STATS_REQUIRED_COLUMNS: tuple[str, ...] = (
     HOUSEHOLDS_COLUMN,
 )
 
-# USGS XLSX에서는 평균 prior 두 개와 PGV만 사용한다.
+# 후속실험 2에서는
+# LS는 평균 prior, LQ는 최대 prior와 PGV를 사용한다.
 USGS_REQUIRED_COLUMNS: tuple[str, ...] = (
     MUNICIPALITY_CODE_COLUMN,
     USGS_LS_PRIOR_COLUMN,
     USGS_LQ_PRIOR_COLUMN,
     USGS_PGV_COLUMN,
 )
+
 
 
 # GT 파일 컬럼명이다.
@@ -303,7 +305,15 @@ def _prepare_usgs_sheet(path: str | Path, sheet_name: str) -> pd.DataFrame:
     """
     한 이벤트의 USGS 시트를 이번 Pilot에 필요한 값만 남겨 정리한다.
 
-    출력: 시정촌코드, pi_ls=LS_prior(평균), pi_lq=LQ_prior(평균), pgv=PGV
+    후속실험 2:
+    - LS prior는 시정촌 평균값 사용
+    - LQ prior는 시정촌 최대값 사용
+
+    출력:
+    시정촌코드,
+    pi_ls=LS_prior(평균),
+    pi_lq=LQ_prior(최대),
+    pgv=PGV
     """
     df = _read_table(path, sheet_name)
     _require_columns(df, USGS_REQUIRED_COLUMNS, sheet_name=sheet_name, source_name="USGS")
@@ -312,11 +322,22 @@ def _prepare_usgs_sheet(path: str | Path, sheet_name: str) -> pd.DataFrame:
     result = pd.DataFrame()
     result[MUNICIPALITY_CODE_COLUMN] = df[MUNICIPALITY_CODE_COLUMN].astype(str)
 
-    # 이번 Pilot에서 확정한 평균 prior를 모델 변수명으로 바꿔 저장한다.
-    result["pi_ls"] = pd.to_numeric(df[USGS_LS_PRIOR_COLUMN], errors="coerce")
-    result["pi_lq"] = pd.to_numeric(df[USGS_LQ_PRIOR_COLUMN], errors="coerce")
-    result["pgv"] = pd.to_numeric(df[USGS_PGV_COLUMN], errors="coerce")
-
+    # 후속실험 2:
+    # LS는 평균 prior, LQ는 최대 prior를 모델 입력으로 사용한다.
+    # 실제 어떤 XLSX 컬럼을 읽을지는 schema.py의 상수에서 관리한다.
+    result["pi_ls"] = pd.to_numeric(
+        df[USGS_LS_PRIOR_COLUMN],
+        errors="coerce",
+    )
+    result["pi_lq"] = pd.to_numeric(
+        df[USGS_LQ_PRIOR_COLUMN],
+        errors="coerce",
+    )
+    result["pgv"] = pd.to_numeric(
+        df[USGS_PGV_COLUMN],
+        errors="coerce",
+    )
+    
     # 실제 값이 존재하는 prior가 [0,1] 범위를 벗어나면 데이터 오류로 처리한다.
     for prior_name in ("pi_ls", "pi_lq"):
         valid = result[prior_name].notna()

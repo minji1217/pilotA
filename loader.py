@@ -10,11 +10,10 @@ Pilot A - data/loader.py
 4. 피해 6채널의 결측을 y=0 placeholder + obs_mask=False로 분리한다.
 5. 같은 이벤트 안에서 5자리 시정촌코드로 통계와 USGS를 join한다.
 6. LS_prior(평균), LQ_prior(평균), PGV와 Exposure가 모두 있는 행만 남긴다.
-7. 후속실험 1 취약성 데이터의 wooden_ratio / mountain_ratio를 (event_idx, 시정촌코드)로 매칭
-8. 최종 모델 행 기준으로 wooden_ratio / mountain_ratio를 표준화해 z_wood / z_mtn 만든다
-9. population / households_general로 E를 만든다.
-10. PyTorch PilotABatch로 변환하고 batch.validate()를 실행한다.
-11. eval용 GT가 필요하면 LS_LF 데이터자료.xlsx를 읽어 EvalGroundTruthBatch를 별도로 만든다.
+7. 통계 XLSX의 wooden_ratio / mountain_ratio를 최종 모델 행 기준으로 표준화해 z_wood / z_mtn을 만든다.
+8. population / households_general로 E를 만든다.
+9. PyTorch PilotABatch로 변환하고 batch.validate()를 실행한다.
+10. eval용 GT가 필요하면 LS_LF 데이터자료.xlsx를 읽어 EvalGroundTruthBatch를 별도로 만든다.
 
 중요: 시정촌코드는 계산용 숫자가 아니라 ID이므로 int로 바꾸어 보관하지 않는다.
 GT는 모델 입력이 아니므로 PilotABatch에 넣지 않고 EvalGroundTruthBatch로 분리한다.
@@ -45,9 +44,9 @@ from schema import (
     MOUNTAIN_RATIO_COLUMN,
     POPULATION_COLUMN,
     USGS_LQ_PRIOR_COLUMN,
-    WOODEN_RATIO_COLUMN,
     USGS_LS_PRIOR_COLUMN,
     USGS_PGV_COLUMN,
+    WOODEN_RATIO_COLUMN,
     EvalGroundTruthBatch,
     PilotABatch,
 )
@@ -59,6 +58,8 @@ STATS_REQUIRED_COLUMNS: tuple[str, ...] = (
     *tuple(DAMAGE_COLUMN_MAP[channel] for channel in CHANNELS),
     POPULATION_COLUMN,
     HOUSEHOLDS_COLUMN,
+    WOODEN_RATIO_COLUMN,
+    MOUNTAIN_RATIO_COLUMN,
 )
 
 # USGS XLSX에서는 평균 prior 두 개와 PGV만 사용한다.
@@ -68,13 +69,6 @@ USGS_REQUIRED_COLUMNS: tuple[str, ...] = (
     USGS_LQ_PRIOR_COLUMN,
     USGS_PGV_COLUMN,
 )
-
-# 후속실험 1 취약성 파일에서 사용하는 컬럼명
-# 식별 key는 (event_idx, muni_code)다.
-# 시정촌코드는 기존 모델과 동일하게 5자리 문자열로 정규화한다.
-VULNERABILITY_EVENT_IDX_COLUMN: str = "event_idx"
-VULNERABILITY_EVENT_NAME_COLUMN: str = "event"
-VULNERABILITY_CODE_COLUMN: str = "muni_code"
 
 
 # GT 파일 컬럼명이다.
@@ -275,7 +269,12 @@ def _prepare_stats_sheet(path: str | Path, sheet_name: str) -> pd.DataFrame:
     """
     한 이벤트의 피해 통계 시트를 join 직전 형태로 정리한다.
 
-    출력: 시정촌코드, 피해 6채널, obs_* 6개, population, households_general
+    출력: 시정촌코드, 피해 6채널, obs_* 6개, population, households_general,
+          wooden_ratio, mountain_ratio
+
+    후속실험 1의 wooden_ratio / mountain_ratio는
+    데이터 수집·합병·결측 대체가 끝난 0~1 원비율을 기대한다.
+    여기서는 z-score를 만들지 않고, 9개 이벤트의 최종 모델 행이 모두 확정된 뒤 표준화한다.
     """
     df = _read_table(path, sheet_name)
     _require_columns(df, STATS_REQUIRED_COLUMNS, sheet_name=sheet_name, source_name="통계")
@@ -306,6 +305,21 @@ def _prepare_stats_sheet(path: str | Path, sheet_name: str) -> pd.DataFrame:
         df[HOUSEHOLDS_COLUMN],
         errors="coerce",
     ).astype("float64")
+
+    # 후속실험 1의 시정촌 취약성 공변량 원비율을 숫자로 읽는다.
+    # 엑셀에는 z값이 아니라 0~1 원비율을 저장하고, 표준화는 최종 모델 행 확정 후 수행한다.
+    result[WOODEN_RATIO_COLUMN] = pd.to_numeric(
+        df[WOODEN_RATIO_COLUMN],
+        errors="coerce",
+    ).astype("float64")
+    result[MOUNTAIN_RATIO_COLUMN] = pd.to_numeric(
+        df[MOUNTAIN_RATIO_COLUMN],
+        errors="coerce",
+    ).astype("float64")
+
+    # 값 자체의 결측/범위 검증은 여기서 하지 않는다.
+    # 통계+USGS 조건으로 실제 모델 행을 먼저 확정한 뒤,
+    # 최종 418행에 대해서만 검증하고 표준화한다.
 
     return result
 
@@ -399,222 +413,54 @@ def _merge_event(
 
     return model_df.reset_index(drop=True), excluded_df.reset_index(drop=True)
 
-def _read_vulnerability_table(path: str | Path) -> pd.DataFrame:
+
+def _standardize_vulnerability_covariates(df: pd.DataFrame) -> pd.DataFrame:
     """
-    후속실험 1의 시정촌 취약성 파일을 읽어 표준 형태로 정리한다.
+    최종 모델 행 전체를 기준으로 후속실험 1의 취약성 공변량을 z-score 표준화한다.
 
-    필요한 값:
-    - event_idx 또는 event
-    - muni_code 또는 시정촌코드
-    - wooden_ratio
-    - mountain_ratio
+    입력:
+        wooden_ratio   [0,1] 원비율
+        mountain_ratio [0,1] 원비율
 
-    최종 반환 key:
-    - event_idx
-    - 시정촌코드(5자리 문자열)
-    - wooden_ratio
-    - mountain_ratio
+    출력 추가 컬럼:
+        z_wood = (wooden_ratio - mean) / std
+        z_mtn  = (mountain_ratio - mean) / std
 
-    비율은 데이터 수집/합병/결측 대체가 끝난 원값(0~1)을 기대한다.
-    표준화는 이 함수가 아니라 최종 모델 418행과 매칭한 뒤 수행한다.
+    중요한 점:
+    - 439개 통계 원본 전체가 아니라 통계+USGS 조건을 통과한 최종 모델 행을 기준으로 계산한다.
+    - 원비율은 그대로 보존하고 z_wood / z_mtn을 새 컬럼으로 추가한다.
+    - std=0이면 공변량에 변이가 없어 회귀계수를 학습할 수 없으므로 오류 처리한다.
     """
-    path = Path(path)
+    result = df.copy()
 
-    if not path.exists():
-        raise FileNotFoundError(
-            f"취약성 데이터 파일을 찾을 수 없습니다: {path}"
-        )
-
-    suffix = path.suffix.lower()
-    if suffix == ".csv":
-        df = pd.read_csv(path)
-    elif suffix in {".xlsx", ".xls"}:
-        df = pd.read_excel(path)
-    else:
-        raise ValueError(
-            "취약성 데이터는 CSV 또는 Excel 파일이어야 합니다: "
-            f"{path}"
-        )
-
-    df = df.copy()
-
-    # ----------------------------------------------------
-    # 시정촌코드
-    # ----------------------------------------------------
-    if VULNERABILITY_CODE_COLUMN in df.columns:
-        raw_code = df[VULNERABILITY_CODE_COLUMN]
-    elif MUNICIPALITY_CODE_COLUMN in df.columns:
-        raw_code = df[MUNICIPALITY_CODE_COLUMN]
-    else:
-        raise ValueError(
-            "취약성 데이터에 시정촌코드 컬럼이 없습니다. "
-            f"'{VULNERABILITY_CODE_COLUMN}' 또는 "
-            f"'{MUNICIPALITY_CODE_COLUMN}'가 필요합니다."
-        )
-
-    normalized_code = raw_code.map(_normalize_municipality_code)
-    if normalized_code.isna().any():
-        bad_values = raw_code.loc[normalized_code.isna()].astype(str).tolist()
-        raise ValueError(
-            "취약성 데이터에 정상적인 5자리 시정촌코드로 변환할 수 없는 값이 있습니다: "
-            f"{bad_values[:10]}"
-        )
-
-    # ----------------------------------------------------
-    # event_idx
-    # ----------------------------------------------------
-    if VULNERABILITY_EVENT_IDX_COLUMN in df.columns:
-        raw_event_idx = pd.to_numeric(
-            df[VULNERABILITY_EVENT_IDX_COLUMN],
-            errors="coerce",
-        )
-
-        invalid_event_idx = (
-            raw_event_idx.isna()
-            | (raw_event_idx % 1 != 0)
-            | (raw_event_idx < 0)
-            | (raw_event_idx >= len(EVENTS))
-        )
-        if invalid_event_idx.any():
-            bad_values = df.loc[
-                invalid_event_idx,
-                VULNERABILITY_EVENT_IDX_COLUMN,
-            ].astype(str).tolist()
-            raise ValueError(
-                "취약성 데이터의 event_idx가 유효하지 않습니다: "
-                f"{bad_values[:10]}"
-            )
-
-        event_idx = raw_event_idx.astype("int64")
-
-    elif VULNERABILITY_EVENT_NAME_COLUMN in df.columns:
-        event_name = df[VULNERABILITY_EVENT_NAME_COLUMN].astype("string").str.strip()
-        event_idx = event_name.map(EVENT_TO_INDEX)
-
-        if event_idx.isna().any():
-            bad_values = event_name.loc[event_idx.isna()].dropna().unique().tolist()
-            raise ValueError(
-                "취약성 데이터에 EVENTS와 일치하지 않는 event 이름이 있습니다: "
-                f"{bad_values[:10]}"
-            )
-
-        event_idx = event_idx.astype("int64")
-
-    else:
-        raise ValueError(
-            "취약성 데이터에는 'event_idx' 또는 'event' 컬럼이 필요합니다."
-        )
-
-    # ----------------------------------------------------
-    # 취약성 비율
-    # ----------------------------------------------------
-    missing_ratio_columns = [
-        column
-        for column in (WOODEN_RATIO_COLUMN, MOUNTAIN_RATIO_COLUMN)
-        if column not in df.columns
-    ]
-    if missing_ratio_columns:
-        raise ValueError(
-            "취약성 데이터에 필요한 비율 컬럼이 없습니다: "
-            f"{missing_ratio_columns}"
-        )
-
-    result = pd.DataFrame(
-        {
-            "event_idx": event_idx,
-            MUNICIPALITY_CODE_COLUMN: normalized_code.astype(str),
-            WOODEN_RATIO_COLUMN: pd.to_numeric(
-                df[WOODEN_RATIO_COLUMN],
-                errors="coerce",
-            ).astype("float64"),
-            MOUNTAIN_RATIO_COLUMN: pd.to_numeric(
-                df[MOUNTAIN_RATIO_COLUMN],
-                errors="coerce",
-            ).astype("float64"),
-        }
-    )
-
-    for column in (WOODEN_RATIO_COLUMN, MOUNTAIN_RATIO_COLUMN):
-        if result[column].isna().any():
-            bad_rows = result.loc[
-                result[column].isna(),
-                ["event_idx", MUNICIPALITY_CODE_COLUMN],
-            ].to_dict("records")
-            raise ValueError(
-                f"취약성 데이터의 {column}에 결측/비숫자 값이 남아 있습니다: "
-                f"{bad_rows[:10]}"
-            )
-
-        out_of_range = (result[column] < 0) | (result[column] > 1)
-        if out_of_range.any():
-            bad_rows = result.loc[
-                out_of_range,
-                ["event_idx", MUNICIPALITY_CODE_COLUMN, column],
-            ].to_dict("records")
-            raise ValueError(
-                f"취약성 데이터의 {column}은 0~1 범위여야 합니다: "
-                f"{bad_rows[:10]}"
-            )
-
-    duplicate_key = result.duplicated(
-        subset=["event_idx", MUNICIPALITY_CODE_COLUMN],
-        keep=False,
-    )
-    if duplicate_key.any():
-        bad_rows = result.loc[
-            duplicate_key,
-            ["event_idx", MUNICIPALITY_CODE_COLUMN],
-        ].to_dict("records")
-        raise ValueError(
-            "취약성 데이터에 중복 (event_idx, 시정촌코드)가 있습니다: "
-            f"{bad_rows[:10]}"
-        )
-
-    return result.reset_index(drop=True)
-
-
-def _attach_vulnerability_covariates(
-    model_df: pd.DataFrame,
-    vulnerability_df: pd.DataFrame,
-) -> pd.DataFrame:
-    """
-    최종 모델 행에 후속실험 1 취약성 비율을 붙이고 표준화한다.
-
-    중요한 순서:
-    1. 기존 통계+USGS 조건으로 최종 모델 행을 먼저 확정한다.
-    2. (event_idx, 시정촌코드)로 취약성 데이터를 매칭한다.
-    3. 매칭된 최종 모델 행 전체를 기준으로 mean/std를 계산한다.
-    4. z_wood / z_mtn을 만든다.
-
-    즉 CSV에 저장된 0~1 원비율 자체를 회귀식에 넣지 않는다.
-    """
-    result = model_df.merge(
-        vulnerability_df,
-        on=["event_idx", MUNICIPALITY_CODE_COLUMN],
-        how="left",
-        validate="one_to_one",
-        indicator="_vulnerability_merge",
-    )
-
-    missing_match = result["_vulnerability_merge"].ne("both")
-    if missing_match.any():
-        bad_rows = result.loc[
-            missing_match,
-            ["event_idx", MUNICIPALITY_CODE_COLUMN],
-        ].to_dict("records")
-        raise ValueError(
-            "최종 모델 행 중 취약성 데이터와 매칭되지 않는 시정촌이 있습니다: "
-            f"{bad_rows[:10]}"
-        )
-
-    result = result.drop(columns="_vulnerability_merge")
-
-    # 후속실험 1에서는 결측 대체까지 끝난 ratio 파일을 입력으로 기대한다.
-    # 따라서 모델 행에 붙인 뒤에도 결측이 있으면 조용히 0으로 채우지 않고 오류로 중단한다.
     for raw_column, z_column in (
         (WOODEN_RATIO_COLUMN, "z_wood"),
         (MOUNTAIN_RATIO_COLUMN, "z_mtn"),
     ):
+        # 후속실험 1에서는 데이터 수집/합병/결측 대체까지 끝난
+        # 0~1 원비율을 입력으로 기대한다.
+        # 단, 검사는 실제 학습에 들어가는 최종 모델 행에 대해서만 수행한다.
+        if result[raw_column].isna().any():
+            bad_rows = result.loc[
+                result[raw_column].isna(),
+                ["event_idx", MUNICIPALITY_CODE_COLUMN],
+            ].to_dict("records")
+            raise ValueError(
+                f"최종 모델 행의 {raw_column}에 결측/비숫자 값이 남아 있습니다: "
+                f"{bad_rows[:10]}"
+            )
+
+        out_of_range = (result[raw_column] < 0) | (result[raw_column] > 1)
+        if out_of_range.any():
+            bad_rows = result.loc[
+                out_of_range,
+                ["event_idx", MUNICIPALITY_CODE_COLUMN, raw_column],
+            ].to_dict("records")
+            raise ValueError(
+                f"최종 모델 행의 {raw_column}은 0~1 범위여야 합니다: "
+                f"{bad_rows[:10]}"
+            )
+
         mean = float(result[raw_column].mean())
         std = float(result[raw_column].std())
 
@@ -632,6 +478,8 @@ def _attach_vulnerability_covariates(
         ).astype("float64")
 
     return result
+
+
 
 def _add_exposure_columns(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -672,13 +520,13 @@ def _to_batch(df: pd.DataFrame) -> PilotABatch:
             df["pgv"].to_numpy(dtype="float64"),
             dtype=DTYPE,
         ),
-        z_wood = torch.tensor(
+        z_wood=torch.tensor(
             df["z_wood"].to_numpy(dtype="float64"),
-            dtype = DTYPE, 
+            dtype=DTYPE,
         ),
-        z_mtn = torch.tensor(
+        z_mtn=torch.tensor(
             df["z_mtn"].to_numpy(dtype="float64"),
-            dtype=DTYPE, 
+            dtype=DTYPE,
         ),
         pi_ls=torch.tensor(
             df["pi_ls"].to_numpy(dtype="float64"),
@@ -752,7 +600,6 @@ def _load_all_events(
 def load_pilot_a_batch(
     stats_path: str | Path,
     usgs_path: str | Path,
-    vulnerability_path: str | Path,
     *,
     strict_expected_rows: bool = True,
 ) -> PilotABatch:
@@ -762,39 +609,25 @@ def load_pilot_a_batch(
     입력:
     - stats_path: 재난프로젝트_시정촌별_통계데이터.xlsx
     - usgs_path: 재난프로젝트_시정촌별_USGS.xlsx
-    - vulnerability_path: 후속실험 1 시정촌 취약성 데이터(CSV/XLSX)
-      필수 값: event_idx 또는 event, muni_code 또는 시정촌코드,
-               wooden_ratio, mountain_ratio
     - strict_expected_rows: True이면 현재 확인한 439/419/418 행 수가 맞는지 검사
 
     출력: PilotABatch
     """
     stats_path = Path(stats_path)
     usgs_path = Path(usgs_path)
-    vulnerability_path = Path(vulnerability_path)
 
     if not stats_path.exists():
         raise FileNotFoundError(f"통계 XLSX를 찾을 수 없습니다: {stats_path}")
     if not usgs_path.exists():
         raise FileNotFoundError(f"USGS XLSX를 찾을 수 없습니다: {usgs_path}")
-    if not vulnerability_path.exists():
-        raise FileNotFoundError(
-            f"취약성 데이터 파일을 찾을 수 없습니다: {vulnerability_path}"
-        )
-    
+
     model_df, _, total_stats_rows, total_usgs_matched_rows = _load_all_events(
         stats_path,
         usgs_path,
     )
 
-    # 통계+USGS 기준으로 최종 모델 행을 먼저 만든 뒤,
-    # 그 행들에만 취약성 데이터를 붙여 전체 모델 행 기준으로 표준화한다.
-    vulnerability_df = _read_vulnerability_table(vulnerability_path)
-    model_df = _attach_vulnerability_covariates(
-        model_df,
-        vulnerability_df,
-    )
-
+    # 최종 모델 행(현재 기대 418행)을 기준으로 취약성 공변량을 표준화한다.
+    model_df = _standardize_vulnerability_covariates(model_df)
 
     model_df = _add_exposure_columns(model_df)
 
@@ -1180,7 +1013,6 @@ def load_eval_ground_truth(
 def load_eval_inputs(
     stats_path: str | Path,
     usgs_path: str | Path,
-    vulnerability_path: str | Path,
     gt_path: str | Path,
     *,
     strict_expected_rows: bool = True,
@@ -1195,7 +1027,6 @@ def load_eval_inputs(
     model_batch = load_pilot_a_batch(
         stats_path,
         usgs_path,
-        vulnerability_path,
         strict_expected_rows=strict_expected_rows,
     )
     eval_gt = load_eval_ground_truth(gt_path, model_batch)

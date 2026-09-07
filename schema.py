@@ -187,6 +187,15 @@ MUNICIPALITY_JA_COLUMN: str = "시정촌(日)"
 POPULATION_COLUMN: str = "population"
 HOUSEHOLDS_COLUMN: str = "households_general"
 
+# 후속실험 1에서 추가하는 시정촌 단위 취약성 공변량 원본 컬럼
+# wooden_ration 목조주택 비율 (0~1)
+# mountain_ratio 산지 비율 근사값 (0~1)
+
+# 이 원값 자체를 회귀식에 바로 넣지 않고, loader.py에서 최종 모델 행에 매칭한 뒤 
+# 전체 모델 데이터 기준으로 표준화하여 z_wood / z_mtn 만든다 
+WOODEN_RATIO_COLUMN: str = "wooden_ratio"
+MOUNTAIN_RATIO_COLUMN: str = "mountain_ratio"
+
 
 # ============================================================
 # 7. USGS 컬럼명
@@ -249,6 +258,24 @@ class PilotABatch:
     pgv
         [B] float64
         USGS PGV
+    
+    z_wood
+        [B] float64
+        후속실험 1의 목조주택 비율 표준화값
+        원본 wooden_ratio를 최종 모델 행 기준으로
+        z_wood = (wooden_ratio - mean) / std
+        로 표준화한 값
+        LS/LQ 잠재상태와 무관한 지역 자체의 취약성 공변량이므로
+        4개 잠재상태 모두에 동일하게 들어간다. 
+    
+    z_mtn 
+        [B] float64
+        후속실험 1의 산지 비율 표준화값
+        원본 mountain_ratio를 최종 모델 행 기준으로
+        z_mtn = (mountain_ratio - mean) / std
+        로 표준화한 값이다
+        z_wood와 마찬가지로 LS/LQ 잠재상태와 무관한
+        지역 자체의 공통 공변량이다. 
 
     pi_ls
         [B] float64
@@ -373,15 +400,17 @@ class PilotABatch:
 
 
         # ----------------------------------------------------
-        # PGV / prior / event_idx shape 검사
+        # PGV / 취약성 공변량 / prior / event_idx shape 검사
         # ----------------------------------------------------
 
-        # PGV, prior, event_idx는
+        # PGV, z_wood, z_mtn, prior, event_idx는
         # 시정촌×이벤트 행마다 값 하나이므로 [B]
         expected_vector_shape = (B,)
 
         for name, tensor in {
             "pgv": self.pgv,
+            "z_wood": self.z_wood, 
+            "z_mtn": self.z_mtn,
             "pi_ls": self.pi_ls,
             "pi_lq": self.pi_lq,
             "event_idx": self.event_idx,
@@ -432,6 +461,8 @@ class PilotABatch:
             "y": self.y,
             "E": self.E,
             "pgv": self.pgv,
+            "z_wood": self.z_wood,
+            "z_mtn": self.z_mtn,
             "pi_ls": self.pi_ls,
             "pi_lq": self.pi_lq,
         }

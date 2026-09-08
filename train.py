@@ -40,6 +40,9 @@ def to_eval_pred(batch: PilotABatch, p_ls, p_lq, eval_gt: EvalGroundTruthBatch):
 
     loader가 만든 model_row_idx가 이미 GT와 같은 순서로 정렬돼 있으므로
     event_idx로 다시 마스킹하지 않고 그대로 쓴다.
+
+    prior_ls / prior_lq는 보정 전 USGS prior 그대로다.
+    사후가 사전보다 나아졌는지 보려면 같은 행에서 잰 prior AUC가 있어야 한다.
     """
     idx = eval_gt.model_row_idx
 
@@ -49,6 +52,8 @@ def to_eval_pred(batch: PilotABatch, p_ls, p_lq, eval_gt: EvalGroundTruthBatch):
         "muni_code": list(eval_gt.municipality_code),
         "p_ls": p_ls[idx].detach().numpy(),
         "p_lq": p_lq[idx].detach().numpy(),
+        "prior_ls": batch.pi_ls[idx].detach().numpy(),
+        "prior_lq": batch.pi_lq[idx].detach().numpy(),
     })
 
 
@@ -81,6 +86,16 @@ def save_eval(result, gt_df, dir_="outputs", tag=""):
         "n_lq": result.n_lq,
         "mse_ls": result.mse_ls,
         "mse_lq": result.mse_lq,
+        # 후속실험 1의 완료기준. posterior가 prior 단독을 넘어야 한다.
+        "auc_ls": result.auc_ls,
+        "auc_lq": result.auc_lq,
+        "auc_prior_ls": result.auc_prior_ls,
+        "auc_prior_lq": result.auc_prior_lq,
+        # 이벤트별 AUC를 행 수로 가중평균한 값
+        "auc_ls_wavg": result.auc_ls_wavg,
+        "auc_lq_wavg": result.auc_lq_wavg,
+        "auc_prior_ls_wavg": result.auc_prior_ls_wavg,
+        "auc_prior_lq_wavg": result.auc_prior_lq_wavg,
         # 양성 개수도 평가 가능한 행 안에서만 세야 placeholder가 섞이지 않는다.
         "n_pos_ls": int(gt_df.loc[ls_ok, "ls_true"].sum()),
         "n_pos_lq": int(gt_df.loc[lq_ok, "lq_true"].sum()),
@@ -103,7 +118,14 @@ def save_eval(result, gt_df, dir_="outputs", tag=""):
     detail.sort_values(["event_idx", "muni_code"]).to_csv(
         f"{dir_}/eval_detail{sfx}.csv", index=False, encoding="utf-8-sig"
     )
-    print(f"저장: {dir_}/eval_summary{sfx}.csv, {dir_}/eval_detail{sfx}.csv")
+
+    # ③ 이벤트별 — 완료기준이 "2004 니가타 LS AUC"라 이벤트 분해가 있어야 판정된다.
+    result.per_event.to_csv(
+        f"{dir_}/eval_per_event{sfx}.csv", index=False, encoding="utf-8-sig"
+    )
+
+    print(f"저장: {dir_}/eval_summary{sfx}.csv, {dir_}/eval_detail{sfx}.csv, "
+          f"{dir_}/eval_per_event{sfx}.csv")
 
 
 def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_bound=2.0):
@@ -220,3 +242,16 @@ if __name__ == "__main__":
         f"MSE_LS {result.mse_ls:.4f} (n={result.n_ls}) / "
         f"MSE_LQ {result.mse_lq:.4f} (n={result.n_lq}) / 전체 {result.n}행"
     )
+    print(
+        f"AUC_LS {result.auc_ls:.4f} (prior {result.auc_prior_ls:.4f}) / "
+        f"AUC_LQ {result.auc_lq:.4f} (prior {result.auc_prior_lq:.4f})"
+    )
+    print(
+        f"이벤트내 가중평균 AUC_LS {result.auc_ls_wavg:.4f} "
+        f"(prior {result.auc_prior_ls_wavg:.4f}) / "
+        f"AUC_LQ {result.auc_lq_wavg:.4f} "
+        f"(prior {result.auc_prior_lq_wavg:.4f})"
+    )
+    print()
+    print("이벤트별:")
+    print(result.per_event.round(4).to_string(index=False))

@@ -8,7 +8,7 @@ Pilot A - reporting.py
 
    컬럼:
      module      reg / lik / pri
-     group       설계식에 등장하는 이름 (alpha_c, alpha_e, beta_c, ...)
+     group       설계식에 등장하는 이름 (alpha_c, alpha_e, beta_c, delta_c, eta_c, ...)
      param       코드상의 nn.Parameter 이름
      idx         채널 파라미터는 채널번호 0~5,
                  alpha_e는 EVENTS 번호 0~7, a/b는 0=LS 1=LQ.
@@ -21,7 +21,7 @@ Pilot A - reporting.py
      value       설계식에 등장하는 실제 값 (변환 후)
 
    transform=none이면 raw_value와 value가 같다.
-   transform=fixed(reference)인 한 행만 학습 대상이 아니며, 나머지 41행이 학습 파라미터다.
+   transform=fixed(reference)인 한 행만 학습 대상이 아니며, 나머지 54행이 학습 파라미터다.
 
 2) save_loss_history() -> outputs/loss_history.csv, outputs/loss_curve.png
    에폭별 loss를 전부 저장하고 선형/로그 두 패널로 그린다.
@@ -48,13 +48,15 @@ from schema import (
 CHANNEL_LABELS = [DAMAGE_COLUMN_MAP[c] for c in CHANNELS]
 CHANNEL_IDX = list(range(len(CHANNEL_LABELS)))
 
-# 이벤트가 9개가 되면서 alpha_event_free가 7 -> 8이 되어 41 -> 42가 되었다.
-# prior_mode="fixed"이면 a, b 4개가 빠져 38개다.
+# 이벤트가 9개가 되면서 alpha_event_free가 7 -> 8이 되어 41 -> 42가 되었고,
+# 후속실험 1에서 delta_c 6 + eta_c 6이 추가되어 42 -> 54가 되었다.
+# prior_mode="fixed"이면 a, b 4개가 빠져 50개다.
 # 실제 검증은 아래에서 optimizer가 들고 있는 수와 직접 대조한다.
-EXPECTED_NUM_PARAMS = 42
+EXPECTED_NUM_PARAMS = 54
 
 # 설계식에 나오는 순서대로 정렬하기 위한 기준
-GROUP_ORDER = ["alpha_c", "alpha_e", "beta_c", "gamma_LS", "gamma_LQ", "phi_c", "a", "b"]
+GROUP_ORDER = ["alpha_c", "alpha_e", "beta_c", "delta_c", "eta_c",
+               "gamma_LS", "gamma_LQ", "phi_c", "a", "b"]
 
 
 def dump_params(reg, like, pri, path="outputs/params.csv"):
@@ -71,6 +73,9 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
         ("reg", "alpha_channel",           "alpha_c",  CHANNEL_IDX,    CHANNEL_LABELS,     "none"),
         ("reg", "alpha_event_free",        "alpha_e",  event_free_idx, event_free_labels,  "none"),
         ("reg", "beta_pgv",                "beta_c",   CHANNEL_IDX,    CHANNEL_LABELS,     "none"),
+        # 후속실험 1에서 추가된 취약성 공변량. gamma와 달리 부호 제약이 없어 transform=none이다.
+        ("reg", "delta_wood",              "delta_c",  CHANNEL_IDX,    CHANNEL_LABELS,     "none"),
+        ("reg", "eta_mtn",                 "eta_c",    CHANNEL_IDX,    CHANNEL_LABELS,     "none"),
         ("reg", "_gamma_ls_unconstrained", "gamma_LS", CHANNEL_IDX,    CHANNEL_LABELS,     "softplus"),
         ("reg", "_gamma_lq_unconstrained", "gamma_LQ", CHANNEL_IDX,    CHANNEL_LABELS,     "softplus"),
         ("lik", "_phi_unconstrained",      "phi_c",    CHANNEL_IDX,    CHANNEL_LABELS,     "softplus"),

@@ -32,6 +32,24 @@ from train import GT_PATH, STATS_PATH, USGS_PATH, to_eval_gt, to_eval_pred, trai
 PRIOR_MODES = ("free", "fixed", "bounded")
 LAM_GAMMAS = (0.0, 0.1, 1.0, 10.0)
 
+# 후속실험에서 채택된 조건을 이름으로 고정해 둔다.
+# 매번 --modes/--lams를 손으로 넣으면 조건이 조용히 어긋난다.
+#
+# followup1 : P2(a,b 범위제한) + lam_gamma=10 에 취약성 공변량 2개(delta_c, eta_c)를
+#             더한 조건. 공변량 추가 자체는 regression.py에 들어가 있으므로
+#             러너 쪽에서는 prior/정규화 조건만 지정하면 된다.
+# followup2 : LQ prior를 최대집계로 바꾸고 b 범위를 [-2, 4]로 넓힌 조건.
+#             prior 집계 방식 전환은 loader 쪽(followup2-prior 브랜치) 작업이라
+#             여기서는 b 범위만 잡아 둔다.
+PRESETS = {
+    "followup1": {"modes": ("bounded",), "lams": (10.0,), "b_bound": 2.0},
+    "followup2": {"modes": ("bounded",), "lams": (10.0,), "b_bound": 4.0},
+}
+
+# 완료기준의 주 지표가 "2004 니가타 LS posterior AUC"라 이벤트 번호를 고정해 둔다.
+# schema.EVENTS의 0번이 2004 니가타현주에쓰다.
+MAIN_EVENT_IDX = 0
+
 OUT_DIR = Path("outputs")
 RUN_DIR = OUT_DIR / "experiments"
 
@@ -62,6 +80,9 @@ def run_one(batch, eval_gt, gt_df, *, mode, lam, epochs, seed, b_bound=DEFAULT_B
 
     RUN_DIR.mkdir(parents=True, exist_ok=True)
     dump_params(reg, like, pri, path=str(RUN_DIR / f"params_{tag}.csv"))
+    result.per_event.to_csv(
+        RUN_DIR / f"eval_per_event_{tag}.csv", index=False, encoding="utf-8-sig"
+    )
     result.merged.sort_values(["event_idx", "muni_code"]).to_csv(
         RUN_DIR / f"eval_detail_{tag}.csv", index=False, encoding="utf-8-sig"
     )
@@ -82,12 +103,31 @@ def run_one(batch, eval_gt, gt_df, *, mode, lam, epochs, seed, b_bound=DEFAULT_B
         p_all = torch.cat([p_ls, p_lq]).numpy()
         middle = float(((p_all > 0.1) & (p_all < 0.9)).mean())
 
+    # 완료기준 주 지표. 해당 이벤트가 평가 대상에 없으면 nan으로 둔다.
+    main_rows = result.per_event.loc[result.per_event["event_idx"] == MAIN_EVENT_IDX]
+    main_auc_ls = float(main_rows["auc_ls"].iloc[0]) if len(main_rows) else float("nan")
+    main_auc_prior_ls = (
+        float(main_rows["auc_prior_ls"].iloc[0]) if len(main_rows) else float("nan")
+    )
+
     return {
         "prior_mode": mode,
         "lam_gamma": lam,
         "b_bound": b_bound if mode == "bounded" else np.nan,
         "mse_ls": result.mse_ls,
         "mse_lq": result.mse_lq,
+        # 후속실험 1의 완료기준. posterior AUC가 prior 단독 AUC를 넘어야 한다.
+        "auc_ls": result.auc_ls,
+        "auc_lq": result.auc_lq,
+        "auc_prior_ls": result.auc_prior_ls,
+        "auc_prior_lq": result.auc_prior_lq,
+        "auc_ls_wavg": result.auc_ls_wavg,
+        "auc_lq_wavg": result.auc_lq_wavg,
+        "auc_prior_ls_wavg": result.auc_prior_ls_wavg,
+        "auc_prior_lq_wavg": result.auc_prior_lq_wavg,
+        # 주 기준: 2004 니가타 LS
+        "auc_ls_niigata2004": main_auc_ls,
+        "auc_prior_ls_niigata2004": main_auc_prior_ls,
         "n_ls": result.n_ls,
         "n_lq": result.n_lq,
         "n": result.n,
@@ -122,13 +162,21 @@ def baseline_rows(gt_df):
     ]
 
 
-def collect_params(out_path=None):
+def collect_params(out_path=None, tags=None):
     """조합별 params_*.csv를 한 장으로 합친다.
 
     파일을 따로 보내면 비교가 안 되므로
     파라미터를 행, 조합을 열로 두고 value만 모은다.
+
+    tags를 주면 그 조합만 모은다.
+    공변량 추가 전(43행)과 추가 후(55행) 실행분을 한 장에 섞으면
+    없는 칸이 전부 빈값이 되고, 이벤트명 표기가 바뀐 경우 같은 파라미터가
+    두 행으로 갈라져 표가 무너진다. 이번 실행분만 볼 때 쓴다.
     """
     files = sorted(RUN_DIR.glob("params_*.csv"))
+    if tags is not None:
+        wanted = {f"params_{t}.csv" for t in tags}
+        files = [f for f in files if f.name in wanted]
     if not files:
         raise FileNotFoundError(f"{RUN_DIR}에 params_*.csv가 없습니다. 먼저 실험을 돌리세요.")
 
@@ -164,9 +212,10 @@ def main(*, epochs=3000, seed=0, modes=PRIOR_MODES, lams=LAM_GAMMAS,
     print(f"batch {batch.batch_size}행 / 평가 GT {eval_gt.batch_size}행 / 이벤트 {n_ev}개")
     print(f"조합 {len(modes) * len(lams)}개 x {epochs}에폭 (bounded의 b 범위 ±{b_bound})")
 
-    rows = []
+    rows, tags = [], []
     for mode in modes:
         for lam in lams:
+            tags.append(f"{mode}_lam{lam:g}")
             rows.append(run_one(batch, eval_gt, gt_df, mode=mode, lam=lam,
                                 epochs=epochs, seed=seed, b_bound=b_bound))
             # 중간에 끊겨도 여기까지 결과는 남는다.
@@ -180,9 +229,10 @@ def main(*, epochs=3000, seed=0, modes=PRIOR_MODES, lams=LAM_GAMMAS,
     print("=" * 60)
     print(f"저장: {out_csv} ({len(df)}행)")
     show = ["prior_mode", "lam_gamma", "mse_ls", "mse_lq",
-            "b_LS", "gamma_ls_max", "frac_middle"]
+            "auc_ls", "auc_prior_ls", "auc_lq", "auc_prior_lq",
+            "auc_ls_niigata2004", "sum_gamma2", "frac_middle"]
     print(df[[c for c in show if c in df.columns]].round(4).to_string(index=False))
-    return df
+    return df, tags
 
 
 if __name__ == "__main__":
@@ -198,8 +248,20 @@ if __name__ == "__main__":
     ap.add_argument("--epochs", type=int, default=3000)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default="experiments.csv", help="outputs/ 아래 저장할 파일명")
+    ap.add_argument("--preset", choices=sorted(PRESETS),
+                    help="후속실험 조건을 이름으로 지정한다. "
+                         "지정하면 --modes/--lams/--b-bound를 덮어쓴다")
     a = ap.parse_args()
 
-    main(epochs=a.epochs, seed=a.seed, modes=tuple(a.modes),
-         lams=tuple(a.lams), b_bound=a.b_bound, out_name=a.out)
-    collect_params()
+    modes, lams, b_bound = tuple(a.modes), tuple(a.lams), a.b_bound
+    if a.preset:
+        cfg = PRESETS[a.preset]
+        modes, lams, b_bound = cfg["modes"], cfg["lams"], cfg["b_bound"]
+        print(f"preset={a.preset}: modes={modes} lams={lams} b_bound=±{b_bound}")
+
+    _, run_tags = main(epochs=a.epochs, seed=a.seed, modes=modes,
+                       lams=lams, b_bound=b_bound, out_name=a.out)
+
+    # 이번에 돌린 조합만 모은다. 예전 실행분과 섞으면 표가 무너진다.
+    suffix = f"_{a.preset}" if a.preset else ""
+    collect_params(out_path=OUT_DIR / f"params_comparison{suffix}.csv", tags=run_tags)

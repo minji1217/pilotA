@@ -201,9 +201,24 @@ MOUNTAIN_RATIO_COLUMN: str = "mountain_ratio"
 # 7. USGS 컬럼명
 # ============================================================
 
-# 이번 Pilot은 최대 prior가 아니라 평균 prior를 사용한다.
+# 후속실험 2에서는 hazard 특성에 따라 prior 집계 방식을 다르게 사용한다.
+#
+# LS:
+#   평균(mean) prior 유지
+#   산사태 prior는 시정촌 내부의 전반적인 취약성을 나타내는 성격이 있어
+#   기존 평균값을 그대로 사용한다.
+#
+# LQ:
+#   평균(mean) -> 최대(max) prior로 변경
+#   액상화는 시정촌 내부 한 지점이라도 높은 발생 가능성을 가지면
+#   시정촌 단위 발생 여부에 영향을 줄 수 있으므로 최대값을 사용한다.
+PRIOR_AGG: dict[str, str] = {
+    "LS": "mean",
+    "LQ": "max",
+}
+
 USGS_LS_PRIOR_COLUMN: str = "LS_prior(평균)"
-USGS_LQ_PRIOR_COLUMN: str = "LQ_prior(평균)"
+USGS_LQ_PRIOR_COLUMN: str = "LQ_prior(최대)"
 USGS_PGV_COLUMN: str = "PGV"
 
 
@@ -283,7 +298,7 @@ class PilotABatch:
 
     pi_lq
         [B] float64
-        LQ_prior(평균)
+        LQ_prior(최대)
 
     event_idx
         [B] long

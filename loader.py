@@ -9,7 +9,7 @@ Pilot A - data/loader.py
 3. 시정촌코드를 5자리 문자열로 정규화한다. 예: 1581 -> "01581"
 4. 피해 6채널의 결측을 y=0 placeholder + obs_mask=False로 분리한다.
 5. 같은 이벤트 안에서 5자리 시정촌코드로 통계와 USGS를 join한다.
-6. LS_prior(평균), LQ_prior(평균), PGV와 Exposure가 모두 있는 행만 남긴다.
+6. LS_prior(평균), LQ_prior(최대), PGV와 Exposure가 모두 있는 행만 남긴다.
 7. 통계 XLSX의 wooden_ratio / mountain_ratio를 최종 모델 행 기준으로 표준화해 z_wood / z_mtn을 만든다.
 8. population / households_general로 E를 만든다.
 9. PyTorch PilotABatch로 변환하고 batch.validate()를 실행한다.
@@ -62,7 +62,8 @@ STATS_REQUIRED_COLUMNS: tuple[str, ...] = (
     MOUNTAIN_RATIO_COLUMN,
 )
 
-# USGS XLSX에서는 평균 prior 두 개와 PGV만 사용한다.
+# 후속실험 2에서는
+# LS는 평균 prior, LQ는 최대 prior와 PGV를 사용한다.
 USGS_REQUIRED_COLUMNS: tuple[str, ...] = (
     MUNICIPALITY_CODE_COLUMN,
     USGS_LS_PRIOR_COLUMN,
@@ -328,7 +329,11 @@ def _prepare_usgs_sheet(path: str | Path, sheet_name: str) -> pd.DataFrame:
     """
     한 이벤트의 USGS 시트를 이번 Pilot에 필요한 값만 남겨 정리한다.
 
-    출력: 시정촌코드, pi_ls=LS_prior(평균), pi_lq=LQ_prior(평균), pgv=PGV
+    후속실험 2:
+    - LS prior는 시정촌 평균값 사용
+    - LQ prior는 시정촌 최대값 사용
+
+    출력: 시정촌코드, pi_ls=LS_prior(평균), pi_lq=LQ_prior(최대), pgv=PGV
     """
     df = _read_table(path, sheet_name)
     _require_columns(df, USGS_REQUIRED_COLUMNS, sheet_name=sheet_name, source_name="USGS")

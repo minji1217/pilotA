@@ -30,9 +30,11 @@ class Prior(nn.Module):
     "fixed"   : a=1, b=0으로 고정한다. sigmoid(logit(pi))=pi 이므로
                 USGS prior를 손대지 않고 그대로 쓴다. 학습 파라미터가 아니다.
 
-    "bounded" : a in [0.5, 2], b in [-2, 2] 범위 안에서만 학습한다.
+    "bounded" : a in [0.5, 2], b in [b_min, b_max] 범위 안에서만 학습한다.
                 clamp는 경계에서 gradient가 0이 되어 학습이 멈추므로
                 sigmoid 재파라미터화를 쓴다. 초기값은 정확히 a=1, b=0이다.
+                b 범위는 기본이 ±b_bound(=[-2,2])이고,
+                후속실험 2처럼 비대칭이 필요하면 b_min/b_max로 준다(=[-2,4]).
     """
 
     MODES = ("free", "fixed", "bounded")
@@ -40,17 +42,34 @@ class Prior(nn.Module):
     A_MIN, A_MAX = 0.5, 2.0
     B_MIN, B_MAX = -2.0, 2.0
 
-    def __init__(self, *args, mode: str = "free", b_bound: float = 2.0, **kwargs):
+    def __init__(self, *args, mode: str = "free", b_bound: float = 2.0,
+                 b_min=None, b_max=None, **kwargs):
         super().__init__(*args, **kwargs)
 
         if mode not in self.MODES:
             raise ValueError(f"mode는 {self.MODES} 중 하나여야 합니다: {mode}")
-        if b_bound <= 0:
-            raise ValueError(f"b_bound는 0보다 커야 합니다: {b_bound}")
         self.mode = mode
 
         # 실험에서 b가 상한에 계속 붙어 나와 범위를 조절할 수 있게 인스턴스 값으로 둔다.
-        self.B_MIN, self.B_MAX = -float(b_bound), float(b_bound)
+        #
+        # 후속실험 2의 b 범위 [-2, 4]는 비대칭이라 b_bound 하나로는 표현할 수 없다.
+        # b_min/b_max를 주면 그쪽을 쓰고, 안 주면 기존처럼 ±b_bound가 된다.
+        if b_min is None and b_max is None:
+            if b_bound <= 0:
+                raise ValueError(f"b_bound는 0보다 커야 합니다: {b_bound}")
+            b_min, b_max = -float(b_bound), float(b_bound)
+        elif b_min is None or b_max is None:
+            raise ValueError("b_min과 b_max는 함께 지정해야 합니다.")
+        else:
+            b_min, b_max = float(b_min), float(b_max)
+
+        # 초기값을 b=0으로 잡으므로 0이 범위 안쪽에 있어야 한다.
+        # 경계에 걸리면 _inverse_sigmoid가 발산한다.
+        if not b_min < 0.0 < b_max:
+            raise ValueError(
+                f"b 범위는 0을 안쪽에 포함해야 합니다(초기값 b=0): [{b_min}, {b_max}]"
+            )
+        self.B_MIN, self.B_MAX = b_min, b_max
 
         if mode == "free":
             self.a=nn.Parameter(torch.ones(2,dtype=DTYPE))

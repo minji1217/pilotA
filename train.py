@@ -12,7 +12,7 @@ from loader import load_eval_ground_truth, load_pilot_a_batch
 from eval import evaluate
 from schema import INDEX_TO_EVENT, EvalGroundTruthBatch, PilotABatch
 
-from reporting import dump_params, save_loss_history
+from reporting import dump_params, save_eval, save_loss_history
 
 STATS_PATH = "raw/재난프로젝트_시정촌별_통계데이터.xlsx"
 USGS_PATH = "raw/재난프로젝트_시정촌별_USGS.xlsx"
@@ -71,76 +71,22 @@ def to_eval_gt(eval_gt: EvalGroundTruthBatch):
     })
 
 
-def save_eval(result, gt_df, dir_="outputs", tag=""):
-    Path(dir_).mkdir(parents=True, exist_ok=True)
-    sfx = f"_{tag}" if tag else ""
-
-    ls_ok = gt_df["ls_eval_mask"].astype(bool)
-    lq_ok = gt_df["lq_eval_mask"].astype(bool)
-
-    # ① 요약 — 나중에 여러 실험을 세로로 쌓기 좋게
-    summary = pd.DataFrame([{
-        "n_events": int(gt_df["event_idx"].nunique()),
-        "n": result.n,
-        "n_ls": result.n_ls,
-        "n_lq": result.n_lq,
-        "mse_ls": result.mse_ls,
-        "mse_lq": result.mse_lq,
-        # 후속실험 1의 완료기준. posterior가 prior 단독을 넘어야 한다.
-        "auc_ls": result.auc_ls,
-        "auc_lq": result.auc_lq,
-        "auc_prior_ls": result.auc_prior_ls,
-        "auc_prior_lq": result.auc_prior_lq,
-        # 이벤트별 AUC를 행 수로 가중평균한 값
-        "auc_ls_wavg": result.auc_ls_wavg,
-        "auc_lq_wavg": result.auc_lq_wavg,
-        "auc_prior_ls_wavg": result.auc_prior_ls_wavg,
-        "auc_prior_lq_wavg": result.auc_prior_lq_wavg,
-        # 양성 개수도 평가 가능한 행 안에서만 세야 placeholder가 섞이지 않는다.
-        "n_pos_ls": int(gt_df.loc[ls_ok, "ls_true"].sum()),
-        "n_pos_lq": int(gt_df.loc[lq_ok, "lq_true"].sum()),
-        "note": "LS/LQ 각각의 eval_mask로 독립 평가",
-    }])
-    summary.to_csv(f"{dir_}/eval_summary{sfx}.csv", index=False, encoding="utf-8-sig")
-
-    # ② 상세 — 시정촌별로 정답/예측/오차를 펼쳐서 확인용
-    detail = result.merged.copy()
-    detail["err_ls"] = (detail["p_ls"] - detail["ls_true"]) ** 2
-    detail["err_lq"] = (detail["p_lq"] - detail["lq_true"]) ** 2
-
-    # eval_mask=False인 행의 정답은 원본이 NA라서 넣어둔 placeholder 0이다.
-    # 진짜 정답이 아니므로 오차를 계산해봐야 의미가 없고 MSE에도 안 들어간다.
-    # 파일만 보고 오해하지 않도록 LS/LQ 각각 비워둔다.
-    detail.loc[~detail["ls_eval_mask"].astype(bool), ["ls_true", "err_ls"]] = pd.NA
-    detail.loc[~detail["lq_eval_mask"].astype(bool), ["lq_true", "err_lq"]] = pd.NA
-
-    # 이벤트 순, 그 안에서 시정촌코드 순. 코드는 5자리 고정폭이라 문자열 정렬이 곧 번호 순이다.
-    detail.sort_values(["event_idx", "muni_code"]).to_csv(
-        f"{dir_}/eval_detail{sfx}.csv", index=False, encoding="utf-8-sig"
-    )
-
-    # ③ 이벤트별 — 완료기준이 "2004 니가타 LS AUC"라 이벤트 분해가 있어야 판정된다.
-    result.per_event.to_csv(
-        f"{dir_}/eval_per_event{sfx}.csv", index=False, encoding="utf-8-sig"
-    )
-
-    print(f"저장: {dir_}/eval_summary{sfx}.csv, {dir_}/eval_detail{sfx}.csv, "
-          f"{dir_}/eval_per_event{sfx}.csv")
-
-
-def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_bound=2.0):
+def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_bound=2.0,
+          b_min=None,b_max=None):
     """
     lam_gamma  : gamma에 거는 L2 정규화 계수. loss에 lam_gamma * sum(gamma^2)를 더한다.
                  gamma에 N(0, 1/(2*lam_gamma)) prior를 준 MAP 추정과 같다.
                  0이면 정규화 없음(= 기존 MLE).
     prior_mode : Prior의 a, b 제약 방식. "free" / "fixed" / "bounded"
     b_bound    : prior_mode="bounded"일 때 b의 범위. b in [-b_bound, +b_bound]
+    b_min/b_max: 비대칭 b 범위가 필요할 때 b_bound 대신 쓴다.
+                 후속실험 2의 b in [-2, 4]가 이 경우다. 둘 다 줘야 한다.
     """
     torch.manual_seed(seed)
 
     like=DamageLikelihood()
     reg=DamageRegression()
-    pri=Prior(mode=prior_mode,b_bound=b_bound)
+    pri=Prior(mode=prior_mode,b_bound=b_bound,b_min=b_min,b_max=b_max)
 
     history = []
     reg.initialize_from_batch(batch)
@@ -199,6 +145,10 @@ if __name__ == "__main__":
                     help="gamma L2 정규화 계수. 0이면 정규화 없음(기본)")
     ap.add_argument("--b-bound", type=float, default=2.0,
                     help="prior-mode=bounded일 때 b의 범위. b in [-b_bound, +b_bound]")
+    ap.add_argument("--b-min", type=float, default=None,
+                    help="비대칭 b 범위의 하한. --b-max와 함께 주면 --b-bound를 대신한다")
+    ap.add_argument("--b-max", type=float, default=None,
+                    help="비대칭 b 범위의 상한. 후속실험 2는 --b-min -2 --b-max 4")
     ap.add_argument("--epochs", type=int, default=3000)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--lr", type=float, default=0.02)
@@ -214,12 +164,17 @@ if __name__ == "__main__":
     eval_gt = load_eval_ground_truth(GT_PATH, batch)
     n_ev = int(eval_gt.event_idx.unique().numel())
     print(f"batch {batch.batch_size}행 / 평가 GT {eval_gt.batch_size}행 / 이벤트 {n_ev}개")
+    if args.b_min is not None or args.b_max is not None:
+        b_desc = f"b∈[{args.b_min}, {args.b_max}]"
+    else:
+        b_desc = f"b∈[-{args.b_bound}, {args.b_bound}]"
     print(f"설정: prior_mode={args.prior_mode} / lam_gamma={args.lam_gamma}"
-          + (f" / b_bound=±{args.b_bound}" if args.prior_mode == "bounded" else ""))
+          + (f" / {b_desc}" if args.prior_mode == "bounded" else ""))
 
     reg, like, pri, hist = train(
         batch=batch, seed=args.seed, epochs=args.epochs, lr=args.lr,
         lam_gamma=args.lam_gamma, prior_mode=args.prior_mode, b_bound=args.b_bound,
+        b_min=args.b_min, b_max=args.b_max,
     )
     save_loss_history(hist, tag=args.tag)
     dump_params(reg, like, pri, path=f"outputs/params{sfx}.csv")

@@ -322,10 +322,17 @@ def merge_runs(runs, dir_="outputs", out_prefix="comparison"):
         )
 
     # (1) AUC / MSE 요약
+    # 조건마다 b 범위와 파라미터 수가 다를 수 있어 params CSV에서 같이 읽어 붙인다.
     rows = []
     for tag, name in runs:
         s = pd.read_csv(dir_ / f"eval_summary_{tag}.csv").iloc[0]
         row = {"조건": name, "tag": tag}
+        ppath = dir_ / f"params_{tag}.csv"
+        if ppath.exists():
+            p = pd.read_csv(ppath)
+            b_rows = p.loc[p["group"] == "b", "transform"]
+            row["b 범위"] = b_rows.iloc[0] if len(b_rows) else ""
+            row["학습 파라미터"] = int((p["transform"] != "fixed(reference)").sum())
         row.update({label: s[col] for col, label in COMPARISON_METRICS})
         rows.append(row)
     auc = pd.DataFrame(rows)
@@ -343,7 +350,11 @@ def merge_runs(runs, dir_="outputs", out_prefix="comparison"):
     per_all.to_csv(dir_ / f"{out_prefix}_per_event.csv", index=False, encoding="utf-8-sig")
 
     # (3) 파라미터 — 조건마다 항이 달라 outer join한다.
-    KEY = ["module", "group", "idx", "label", "transform"]
+    #
+    # transform은 키에 넣지 않는다. b의 transform 문자열에는 범위가 들어 있어
+    # (bounded[-2.0,2.0] vs bounded[-2.0,4.0]) 조건마다 달라지고, 키에 넣으면
+    # 같은 b_LS가 두 행으로 갈라진다. b 범위는 위 요약표에 따로 싣는다.
+    KEY = ["module", "group", "idx", "label"]
     merged = None
     for tag, name in runs:
         path = dir_ / f"params_{tag}.csv"

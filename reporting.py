@@ -26,6 +26,15 @@ Pilot A - reporting.py
 2) save_loss_history() -> outputs/loss_history.csv, outputs/loss_curve.png
    에폭별 loss를 전부 저장하고 선형/로그 두 패널로 그린다.
 
+3) save_eval()         -> outputs/eval_summary.csv, eval_detail.csv, eval_per_event.csv
+   eval.evaluate()가 낸 결과를 CSV 3종으로 떨어뜨린다.
+   원래 train.py의 __main__ 근처에 있었는데, 산출물 저장은 전부 이 파일에
+   모으는 편이 브랜치를 오갈 때 덜 헷갈려서 옮겼다.
+
+4) merge_runs()        -> outputs/comparison_auc.csv, comparison_params.csv
+   브랜치별로 따로 돌린 실행 결과를 한 표로 합친다.
+   조건이 여러 개일 때 파일을 번갈아 열지 않고 나란히 비교하려는 용도다.
+
 모델 계산에는 관여하지 않는다. 학습이 끝난 뒤에만 호출한다.
 """
 from pathlib import Path
@@ -203,3 +212,149 @@ def save_loss_history(hist_df, dir_="outputs", tag=""):
     print(f"저장: {csv_path}, {png_path}")
     print(f"  loss {first:,.1f} -> {last:,.1f}  ({len(hist_df)} epochs)")
     return hist_df
+
+
+def save_eval(result, gt_df, dir_="outputs", tag=""):
+    """eval.evaluate() 결과를 CSV 3종으로 저장한다.
+
+    원래 train.py에 있던 함수를 그대로 옮긴 것이다. 동작은 바뀌지 않았다.
+    """
+    Path(dir_).mkdir(parents=True, exist_ok=True)
+    sfx = f"_{tag}" if tag else ""
+
+    ls_ok = gt_df["ls_eval_mask"].astype(bool)
+    lq_ok = gt_df["lq_eval_mask"].astype(bool)
+
+    # (1) 요약 — 나중에 여러 실험을 세로로 쌓기 좋게
+    summary = pd.DataFrame([{
+        "n_events": int(gt_df["event_idx"].nunique()),
+        "n": result.n,
+        "n_ls": result.n_ls,
+        "n_lq": result.n_lq,
+        "mse_ls": result.mse_ls,
+        "mse_lq": result.mse_lq,
+        # 후속실험 1의 완료기준. posterior가 prior 단독을 넘어야 한다.
+        "auc_ls": result.auc_ls,
+        "auc_lq": result.auc_lq,
+        "auc_prior_ls": result.auc_prior_ls,
+        "auc_prior_lq": result.auc_prior_lq,
+        # 이벤트별 AUC를 행 수로 가중평균한 값
+        "auc_ls_wavg": result.auc_ls_wavg,
+        "auc_lq_wavg": result.auc_lq_wavg,
+        "auc_prior_ls_wavg": result.auc_prior_ls_wavg,
+        "auc_prior_lq_wavg": result.auc_prior_lq_wavg,
+        # 양성 개수도 평가 가능한 행 안에서만 세야 placeholder가 섞이지 않는다.
+        "n_pos_ls": int(gt_df.loc[ls_ok, "ls_true"].sum()),
+        "n_pos_lq": int(gt_df.loc[lq_ok, "lq_true"].sum()),
+        "note": "LS/LQ 각각의 eval_mask로 독립 평가",
+    }])
+    summary.to_csv(f"{dir_}/eval_summary{sfx}.csv", index=False, encoding="utf-8-sig")
+
+    # (2) 상세 — 시정촌별로 정답/예측/오차를 펼쳐서 확인용
+    detail = result.merged.copy()
+    detail["err_ls"] = (detail["p_ls"] - detail["ls_true"]) ** 2
+    detail["err_lq"] = (detail["p_lq"] - detail["lq_true"]) ** 2
+
+    # eval_mask=False인 행의 정답은 원본이 NA라서 넣어둔 placeholder 0이다.
+    # 진짜 정답이 아니므로 오차를 계산해봐야 의미가 없고 MSE에도 안 들어간다.
+    # 파일만 보고 오해하지 않도록 LS/LQ 각각 비워둔다.
+    detail.loc[~detail["ls_eval_mask"].astype(bool), ["ls_true", "err_ls"]] = pd.NA
+    detail.loc[~detail["lq_eval_mask"].astype(bool), ["lq_true", "err_lq"]] = pd.NA
+
+    # 이벤트 순, 그 안에서 시정촌코드 순. 코드는 5자리 고정폭이라 문자열 정렬이 곧 번호 순이다.
+    detail.sort_values(["event_idx", "muni_code"]).to_csv(
+        f"{dir_}/eval_detail{sfx}.csv", index=False, encoding="utf-8-sig"
+    )
+
+    # (3) 이벤트별 — 완료기준이 "2004 니가타 LS AUC"라 이벤트 분해가 있어야 판정된다.
+    result.per_event.to_csv(
+        f"{dir_}/eval_per_event{sfx}.csv", index=False, encoding="utf-8-sig"
+    )
+
+    print(f"저장: {dir_}/eval_summary{sfx}.csv, {dir_}/eval_detail{sfx}.csv, "
+          f"{dir_}/eval_per_event{sfx}.csv")
+
+
+# 합본에서 뽑아 쓸 AUC/MSE 열. eval_summary의 컬럼명 그대로다.
+COMPARISON_METRICS = [
+    ("auc_ls_wavg",       "LS AUC 가중평균"),
+    ("auc_prior_ls_wavg", "LS prior 가중평균"),
+    ("auc_ls",            "LS AUC 전체"),
+    ("auc_prior_ls",      "LS prior 전체"),
+    ("auc_lq_wavg",       "LQ AUC 가중평균"),
+    ("auc_prior_lq_wavg", "LQ prior 가중평균"),
+    ("auc_lq",            "LQ AUC 전체"),
+    ("auc_prior_lq",      "LQ prior 전체"),
+    ("mse_ls",            "MSE_LS"),
+    ("mse_lq",            "MSE_LQ"),
+    ("n_ls",              "LS 평가행"),
+    ("n_lq",              "LQ 평가행"),
+]
+
+
+def merge_runs(runs, dir_="outputs", out_prefix="comparison"):
+    """브랜치별로 따로 돌린 실행 결과를 한 표로 합친다.
+
+    runs
+        [(tag, 표시이름), ...]
+        tag는 train.py --tag 에 준 값이다. dir_ 안의
+        eval_summary_{tag}.csv / eval_per_event_{tag}.csv / params_{tag}.csv 를 읽는다.
+
+    만드는 파일
+        {out_prefix}_auc.csv       조건이 행, 지표가 열
+        {out_prefix}_per_event.csv 이벤트가 행, 조건이 열 (LS/LQ 각각)
+        {out_prefix}_params.csv    파라미터가 행, 조건이 열
+                                   그 조건의 모델에 없는 항은 빈칸으로 남는다
+
+    조건마다 파라미터 구성이 다르므로(공변량 유무) 파라미터 합본은 outer join한다.
+    빈칸은 "값이 0"이 아니라 "그 모델에 그 항이 없음"을 뜻한다.
+    """
+    dir_ = Path(dir_)
+    missing = [t for t, _ in runs if not (dir_ / f"eval_summary_{t}.csv").exists()]
+    if missing:
+        raise FileNotFoundError(
+            f"{dir_}에 다음 tag의 eval_summary가 없습니다: {missing}"
+        )
+
+    # (1) AUC / MSE 요약
+    rows = []
+    for tag, name in runs:
+        s = pd.read_csv(dir_ / f"eval_summary_{tag}.csv").iloc[0]
+        row = {"조건": name, "tag": tag}
+        row.update({label: s[col] for col, label in COMPARISON_METRICS})
+        rows.append(row)
+    auc = pd.DataFrame(rows)
+    auc["LS − prior"] = auc["LS AUC 가중평균"] - auc["LS prior 가중평균"]
+    auc["LQ − prior"] = auc["LQ AUC 가중평균"] - auc["LQ prior 가중평균"]
+    auc.to_csv(dir_ / f"{out_prefix}_auc.csv", index=False, encoding="utf-8-sig")
+
+    # (2) 이벤트별
+    per = []
+    for tag, name in runs:
+        p = pd.read_csv(dir_ / f"eval_per_event_{tag}.csv")
+        p.insert(0, "조건", name)
+        per.append(p)
+    per_all = pd.concat(per, ignore_index=True)
+    per_all.to_csv(dir_ / f"{out_prefix}_per_event.csv", index=False, encoding="utf-8-sig")
+
+    # (3) 파라미터 — 조건마다 항이 달라 outer join한다.
+    KEY = ["module", "group", "idx", "label", "transform"]
+    merged = None
+    for tag, name in runs:
+        path = dir_ / f"params_{tag}.csv"
+        if not path.exists():
+            print(f"  건너뜀: {path.name} 없음")
+            continue
+        p = pd.read_csv(path)[KEY + ["value"]].rename(columns={"value": name})
+        merged = p if merged is None else merged.merge(p, on=KEY, how="outer")
+    if merged is not None:
+        order = {g: i for i, g in enumerate(GROUP_ORDER)}
+        merged = merged.sort_values(
+            by=["group", "idx"],
+            key=lambda s: s.map(order) if s.name == "group" else s,
+        ).reset_index(drop=True)
+        merged.to_csv(dir_ / f"{out_prefix}_params.csv", index=False, encoding="utf-8-sig")
+
+    print(f"저장: {dir_}/{out_prefix}_auc.csv, {dir_}/{out_prefix}_per_event.csv"
+          + (f", {dir_}/{out_prefix}_params.csv" if merged is not None else ""))
+    return auc, per_all, merged

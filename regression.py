@@ -2,7 +2,7 @@
 Pilot A - model/regression.py
 
 loader.py가 만든 PilotABatch에서
-E, PGV, z_wood, z_mtn, event_idx를 받아
+E, PGV, z_mtn, event_idx를 받아
 잠재상태 4개(00, 10, 01, 11) 각각에 대해
 피해 6채널의 기대피해 건수 mu를 계산한다.
 
@@ -12,7 +12,7 @@ PilotABatch 실제 데이터 형태:
 y                       [418, 6]       torch.float64   피해 6채널 관측값
 E                       [418, 6]       torch.float64   피해 6채널 Exposure
 pgv                     [418]          torch.float64   각 시정촌×이벤트 행의 PGV
-z_wood                  [418]          torch.float64   표준화된 목조주택 비율
+z_wood                  [418]          torch.float64   표준화된 목조주택 비율 (이 브랜치에서는 쓰지 않음)
 z_mtn                   [418]          torch.float64   표준화된 산지 비율
 pi_ls                   [418]          torch.float64   LS prior 평균
 pi_lq                   [418]          torch.float64   LQ prior 평균
@@ -27,7 +27,6 @@ municipality_code       길이 418       tuple[str,...]  "01581" 같은 5자리 
         = alpha_c
         + alpha_e
         + beta_c * log(PGV_ie)
-        + delta_c * z_wood_i
         + eta_c * z_mtn_i
         + gamma_c^LS * LS
         + gamma_c^LQ * LQ
@@ -40,7 +39,6 @@ municipality_code       길이 418       tuple[str,...]  "01581" 같은 5자리 
 
     E           [B, 6]
     pgv         [B]
-    z_wood      [B]
     z_mtn       [B]
     event_idx   [B]
 
@@ -139,9 +137,6 @@ class DamageRegression(nn.Module):
     beta_pgv [6]
         채널별 log(PGV) 효과
 
-    delta_wood [6]
-        채널별 표준화 목조주택 비율(z_wood) 효과
-
     eta_mtn [6]
         채널별 표준화 산지 비율(z_mtn) 효과
 
@@ -154,7 +149,7 @@ class DamageRegression(nn.Module):
 
     제약:
 
-    delta_wood / eta_mtn
+    eta_mtn
         부호 제약 없이 자유롭게 학습한다.
 
     gamma_ls / gamma_lq
@@ -189,9 +184,6 @@ class DamageRegression(nn.Module):
             모든 이벤트 효과 0
 
         beta_pgv
-            모두 0
-
-        delta_wood
             모두 0
 
         eta_mtn
@@ -265,28 +257,6 @@ class DamageRegression(nn.Module):
         )
 
         # ----------------------------------------------------
-        # delta_c
-        # ----------------------------------------------------
-
-        # delta_c [6]
-        #
-        # 표준화된 목조주택 비율(z_wood)이
-        # 피해 6채널 각각에 미치는 효과.
-        #
-        # 후속실험 1의 목적은
-        # 지역 자체 취약성이 설명할 편차를
-        # 회귀식이 충분히 흡수하도록 하는 것이다.
-        #
-        # 따라서 gamma처럼 양수 제약을 걸지 않고
-        # 0에서 시작해 자유롭게 학습한다.
-        self.delta_wood = nn.Parameter(
-            torch.zeros(
-                NUM_CHANNELS,
-                dtype=DTYPE,
-            )
-        )
-
-        # ----------------------------------------------------
         # eta_c
         # ----------------------------------------------------
 
@@ -295,7 +265,7 @@ class DamageRegression(nn.Module):
         # 표준화된 산지 비율(z_mtn)이
         # 피해 6채널 각각에 미치는 효과.
         #
-        # z_wood와 마찬가지로
+        # LS/LQ 상태와 무관하게
         # 4개 잠재상태에 공통으로 적용되는
         # 지역 자체의 공변량이다.
         self.eta_mtn = nn.Parameter(
@@ -448,9 +418,6 @@ class DamageRegression(nn.Module):
             beta_c = 0
 
         4.
-            delta_c = 0
-
-        5.
             eta_c = 0
 
         6.
@@ -515,8 +482,6 @@ class DamageRegression(nn.Module):
 
         self.beta_pgv.zero_()
 
-        self.delta_wood.zero_()
-
         self.eta_mtn.zero_()
 
         # gamma 역시 initialize_from_batch() 호출 시
@@ -551,9 +516,6 @@ class DamageRegression(nn.Module):
             pgv
                 44.64
 
-            z_wood
-                표준화된 목조주택 비율
-
             z_mtn
                 표준화된 산지 비율
 
@@ -568,15 +530,11 @@ class DamageRegression(nn.Module):
             채널별 beta_c [6]이 각각 곱해진다.
 
         2.
-            z_wood에는
-            채널별 delta_c [6]이 각각 곱해진다.
-
-        3.
             z_mtn에는
             채널별 eta_c [6]이 각각 곱해진다.
 
-        4.
-            z_wood / z_mtn 효과는
+        3.
+            z_mtn 효과는
             LS/LQ 상태와 무관한 지역 자체 공변량이므로
             00/10/01/11 네 상태 모두에 동일하게 들어간다.
 
@@ -628,17 +586,13 @@ class DamageRegression(nn.Module):
         # vulnerability covariates
         # ----------------------------------------------------
 
-        # z_wood / z_mtn도 행마다 하나라 [B].
+        # z_mtn도 행마다 하나라 [B].
         #
         # 상태 축 크기를 1로 두기 때문에
         # 00/10/01/11 네 상태에
         # 같은 값이 broadcast된다.
-        z_wood = batch.z_wood.view(
-            B,
-            1,
-            1,
-        )
-
+        #
+        # batch.z_wood는 그대로 실려 오지만 이 브랜치에서는 쓰지 않는다.
         z_mtn = batch.z_mtn.view(
             B,
             1,
@@ -672,12 +626,6 @@ class DamageRegression(nn.Module):
         )
 
         pgv_effect = self.beta_pgv.view(
-            1,
-            1,
-            NUM_CHANNELS,
-        )
-
-        wood_effect = self.delta_wood.view(
             1,
             1,
             NUM_CHANNELS,
@@ -750,7 +698,6 @@ class DamageRegression(nn.Module):
             channel_intercept
             + event_effect
             + pgv_effect * log_pgv
-            + wood_effect * z_wood
             + mtn_effect * z_mtn
             + gamma_ls * ls_state
             + gamma_lq * lq_state

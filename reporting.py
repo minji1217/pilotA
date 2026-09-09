@@ -8,7 +8,7 @@ Pilot A - reporting.py
 
    컬럼:
      module      reg / lik / pri
-     group       설계식에 등장하는 이름 (alpha_c, alpha_e, beta_c, delta_c, eta_c, ...)
+     group       설계식에 등장하는 이름 (alpha_c, alpha_e, beta_c, eta_c, ...)
      param       코드상의 nn.Parameter 이름
      idx         채널 파라미터는 채널번호 0~5,
                  alpha_e는 EVENTS 번호 0~7, a/b는 0=LS 1=LQ.
@@ -59,12 +59,13 @@ CHANNEL_IDX = list(range(len(CHANNEL_LABELS)))
 
 # 이벤트가 9개가 되면서 alpha_event_free가 7 -> 8이 되어 41 -> 42가 되었고,
 # 후속실험 1에서 delta_c 6 + eta_c 6이 추가되어 42 -> 54가 되었다.
-# prior_mode="fixed"이면 a, b 4개가 빠져 50개다.
+# 이 브랜치는 delta_c 6개를 다시 뺐으므로 48개다.
+# prior_mode="fixed"이면 a, b 4개가 빠져 44개다.
 # 실제 검증은 아래에서 optimizer가 들고 있는 수와 직접 대조한다.
-EXPECTED_NUM_PARAMS = 54
+EXPECTED_NUM_PARAMS = 48
 
 # 설계식에 나오는 순서대로 정렬하기 위한 기준
-GROUP_ORDER = ["alpha_c", "alpha_e", "beta_c", "delta_c", "eta_c",
+GROUP_ORDER = ["alpha_c", "alpha_e", "beta_c", "eta_c",
                "gamma_LS", "gamma_LQ", "phi_c", "a", "b"]
 
 
@@ -83,7 +84,7 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
         ("reg", "alpha_event_free",        "alpha_e",  event_free_idx, event_free_labels,  "none"),
         ("reg", "beta_pgv",                "beta_c",   CHANNEL_IDX,    CHANNEL_LABELS,     "none"),
         # 후속실험 1에서 추가된 취약성 공변량. gamma와 달리 부호 제약이 없어 transform=none이다.
-        ("reg", "delta_wood",              "delta_c",  CHANNEL_IDX,    CHANNEL_LABELS,     "none"),
+        # delta_wood(목조)는 이 브랜치에서 제거했다.
         ("reg", "eta_mtn",                 "eta_c",    CHANNEL_IDX,    CHANNEL_LABELS,     "none"),
         ("reg", "_gamma_ls_unconstrained", "gamma_LS", CHANNEL_IDX,    CHANNEL_LABELS,     "softplus"),
         ("reg", "_gamma_lq_unconstrained", "gamma_LQ", CHANNEL_IDX,    CHANNEL_LABELS,     "softplus"),

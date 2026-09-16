@@ -112,8 +112,20 @@ NATMIX_RUNS = [
         note="3번과 같은 모델. ls_type이 자연/혼재인 행만 LS 양성으로 센다"),
 ]
 
-RUNS: list[Run] = [*FEEDBACK_RUNS, *NATMIX_RUNS, *AREA_RUNS]
-GROUPS = ("feedback", "natmix", "area")
+# ④-2 c를 hazard별로 분리 — 기존 6개는 c를 LS·LQ에 똑같이 강요했다. 실측으로 LS는
+# 유도식 c=1에서 편향 +0.006으로 이미 맞고 LQ만 +0.256으로 과대예측한다.
+# a=1, b=0, c_LS=1은 그대로 두고 c_LQ만 움직인다.
+SPLIT_RUNS = [
+    Run("G", "LQ c=0.5", "split", "followup3-area-avg-lq-c05", needs_area=True,
+        note="c_LS=1 고정, c_LQ=0.5 고정"),
+    Run("H", "LQ c=0.75", "split", "followup3-area-avg-lq-c075", needs_area=True,
+        note="c_LS=1 고정, c_LQ=0.75 고정 (편향이 0을 지나는 지점의 선형 추정)"),
+    Run("I", "LQ c 학습", "split", "followup3-area-avg-lq-c-free", needs_area=True,
+        note="c_LS=1 고정, c_LQ만 학습 [0, 2]"),
+]
+
+RUNS: list[Run] = [*FEEDBACK_RUNS, *NATMIX_RUNS, *AREA_RUNS, *SPLIT_RUNS]
+GROUPS = ("feedback", "natmix", "area", "split")
 
 
 def sh(cmd: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess:

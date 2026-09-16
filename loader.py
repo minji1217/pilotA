@@ -11,9 +11,10 @@ Pilot A - data/loader.py
 5. 같은 이벤트 안에서 5자리 시정촌코드로 통계와 USGS를 join한다.
 6. LS_prior(평균), LQ_prior(평균), PGV와 Exposure가 모두 있는 행만 남긴다.
 7. 통계 XLSX의 wooden_ratio / mountain_ratio를 최종 모델 행 기준으로 표준화해 z_wood / z_mtn을 만든다.
-8. population / households_general로 E를 만든다.
-9. PyTorch PilotABatch로 변환하고 batch.validate()를 실행한다.
-10. eval용 GT가 필요하면 LS_LF 데이터자료.xlsx를 읽어 EvalGroundTruthBatch를 별도로 만든다.
+8. (후속실험 3) USGS XLSX의 area_km2와 격자 칸 넓이로 면적 항 log k(LS 7.5″, LQ 15″)를 만든다.
+9. population / households_general로 E를 만든다.
+10. PyTorch PilotABatch로 변환하고 batch.validate()를 실행한다.
+11. eval용 GT가 필요하면 LS_LF 데이터자료.xlsx를 읽어 EvalGroundTruthBatch를 별도로 만든다.
 
 중요: 시정촌코드는 계산용 숫자가 아니라 ID이므로 int로 바꾸어 보관하지 않는다.
 GT는 모델 입력이 아니므로 PilotABatch에 넣지 않고 EvalGroundTruthBatch로 분리한다.
@@ -26,6 +27,8 @@ from typing import Iterable
 
 import pandas as pd
 import torch
+
+import numpy as np
 
 from schema import (
     CHANNELS,
@@ -45,8 +48,15 @@ from schema import (
     POPULATION_COLUMN,
     USGS_LQ_PRIOR_COLUMN,
     USGS_LS_PRIOR_COLUMN,
+    USGS_AREA_COLUMN,
+    USGS_AREA_YEAR_COLUMN,
     USGS_PGV_COLUMN,
     WOODEN_RATIO_COLUMN,
+    KM_PER_DEG_LAT,
+    KM_PER_DEG_LON_EQUATOR,
+    LQ_GRID_ARCSEC,
+    LS_GRID_ARCSEC,
+    PREFECTURE_CAPITAL_LAT,
     EvalGroundTruthBatch,
     PilotABatch,
 )
@@ -68,6 +78,8 @@ USGS_REQUIRED_COLUMNS: tuple[str, ...] = (
     USGS_LS_PRIOR_COLUMN,
     USGS_LQ_PRIOR_COLUMN,
     USGS_PGV_COLUMN,
+    # 후속실험 3의 면적 항 k는 이 총면적에서 만든다. 같은 시트에 이미 들어 있다.
+    USGS_AREA_COLUMN,
 )
 
 
@@ -342,6 +354,11 @@ def _prepare_usgs_sheet(path: str | Path, sheet_name: str) -> pd.DataFrame:
     result["pi_lq"] = pd.to_numeric(df[USGS_LQ_PRIOR_COLUMN], errors="coerce")
     result["pgv"] = pd.to_numeric(df[USGS_PGV_COLUMN], errors="coerce")
 
+    # 후속실험 3의 면적 항 원값. base 모드에서는 쓰지 않지만 값은 항상 실어 둔다.
+    result["area_km2"] = pd.to_numeric(df[USGS_AREA_COLUMN], errors="coerce")
+    if USGS_AREA_YEAR_COLUMN in df.columns:
+        result["area_year"] = pd.to_numeric(df[USGS_AREA_YEAR_COLUMN], errors="coerce")
+
     # 실제 값이 존재하는 prior가 [0,1] 범위를 벗어나면 데이터 오류로 처리한다.
     for prior_name in ("pi_ls", "pi_lq"):
         valid = result[prior_name].notna()
@@ -481,6 +498,48 @@ def _standardize_vulnerability_covariates(df: pd.DataFrame) -> pd.DataFrame:
 
 
 
+def _grid_cell_km2(lat_deg, arcsec: float):
+    """위도 lat_deg에서 arcsec × arcsec 격자 한 칸의 넓이(km²)."""
+    deg = arcsec / 3600.0
+    return (deg * KM_PER_DEG_LON_EQUATOR * np.cos(np.radians(lat_deg))) * (deg * KM_PER_DEG_LAT)
+
+
+def _add_area_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    후속실험 3의 면적 항 log k를 만든다.
+
+        log_k_ls = log(총면적 / 7.5″ 칸 넓이)
+        log_k_lq = log(총면적 / 15″ 칸 넓이)
+
+    - 총면적은 USGS XLSX의 area_km2다. 이벤트 시트별로 들어 있어 합병 전후 면적이 자동으로 구분된다.
+    - 최종 모델 행에 면적이 없거나 0 이하이면 멈춘다. 조용히 빼면 학습 행 수가 달라진다.
+    - 칸 넓이는 현청 소재지 위도로 계산한다(schema.PREFECTURE_CAPITAL_LAT).
+    """
+    result = df.copy()
+
+    bad = result["area_km2"].isna() | ~(result["area_km2"] > 0)
+    if bad.any():
+        raise ValueError(
+            "최종 모델 행에 총면적(area_km2)이 없거나 0 이하입니다: "
+            f"{result.loc[bad, ['event_idx', MUNICIPALITY_CODE_COLUMN]].to_dict('records')[:10]}"
+        )
+
+    lat = result[MUNICIPALITY_CODE_COLUMN].str[:2].map(PREFECTURE_CAPITAL_LAT)
+    if lat.isna().any():
+        raise ValueError(
+            "현청 위도가 없는 都道府県 코드가 있습니다: "
+            f"{sorted(result.loc[lat.isna(), MUNICIPALITY_CODE_COLUMN].str[:2].unique())}"
+        )
+
+    area = result["area_km2"].to_numpy(dtype="float64")
+    for name, arcsec in (("ls", LS_GRID_ARCSEC), ("lq", LQ_GRID_ARCSEC)):
+        cell = _grid_cell_km2(lat.to_numpy(dtype="float64"), arcsec)
+        result[f"cell_km2_{name}"] = cell
+        result[f"log_k_{name}"] = np.log(area / cell)
+
+    return result
+
+
 def _add_exposure_columns(df: pd.DataFrame) -> pd.DataFrame:
     """
     population / households_general을 6채널 Exposure E로 확장한다.
@@ -534,6 +593,14 @@ def _to_batch(df: pd.DataFrame) -> PilotABatch:
         ),
         pi_lq=torch.tensor(
             df["pi_lq"].to_numpy(dtype="float64"),
+            dtype=DTYPE,
+        ),
+        log_k_ls=torch.tensor(
+            df["log_k_ls"].to_numpy(dtype="float64"),
+            dtype=DTYPE,
+        ),
+        log_k_lq=torch.tensor(
+            df["log_k_lq"].to_numpy(dtype="float64"),
             dtype=DTYPE,
         ),
         event_idx=torch.tensor(
@@ -628,6 +695,9 @@ def load_pilot_a_batch(
 
     # 최종 모델 행(현재 기대 418행)을 기준으로 취약성 공변량을 표준화한다.
     model_df = _standardize_vulnerability_covariates(model_df)
+
+    # 후속실험 3의 면적 항 log k. --prior-mode area에서만 쓰이고 base 결과는 바뀌지 않는다.
+    model_df = _add_area_columns(model_df)
 
     model_df = _add_exposure_columns(model_df)
 

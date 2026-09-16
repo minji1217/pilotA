@@ -206,6 +206,40 @@ USGS_LS_PRIOR_COLUMN: str = "LS_prior(평균)"
 USGS_LQ_PRIOR_COLUMN: str = "LQ_prior(평균)"
 USGS_PGV_COLUMN: str = "PGV"
 
+# 후속실험 3(면적 항)에서 쓰는 시정촌 총면적이다.
+# 별도 CSV가 아니라 USGS XLSX의 area_km2 / area_year 컬럼에 이벤트 시점 기준으로 들어 있다.
+# 출처는 e-Stat B1101 총면적이고, area_year가 그 이벤트의 기준 연도다.
+USGS_AREA_COLUMN: str = "area_km2"
+USGS_AREA_YEAR_COLUMN: str = "area_year"
+
+
+# ============================================================
+# 7-1. 격자 칸 넓이 / 면적 항 k (후속실험 3)
+# ============================================================
+
+# USGS 산사태·액상화 값은 "발생확률"이 아니라 격자 한 칸에서 덮이는 면적 비율이다.
+#   산사태  Nowicki Jessee et al. (2018)  격자 7.5″
+#   액상화  Zhu, Baise & Thompson (2017)  격자 15″
+# 칸끼리 독립이라고 보면 시정촌 어딘가에서 한 번이라도 날 기대 칸 수는
+#   lambda = p_bar * k,   k = 시정촌 총면적 / 격자 한 칸 넓이
+# 가 된다. prior.AreaPrior가 이 log k를 쓰고, loader가 값을 만든다.
+LS_GRID_ARCSEC: float = 7.5
+LQ_GRID_ARCSEC: float = 15.0
+
+# 위도 1도의 길이(km). 경도 방향은 cos(위도)를 곱한다.
+KM_PER_DEG_LAT: float = 110.95
+KM_PER_DEG_LON_EQUATOR: float = 111.32
+
+# 칸 넓이는 위도에 따라 달라진다. 시정촌별 위도 자료가 없어 현청 소재지 위도를 쓴다.
+# 같은 현 안에서는 칸 넓이가 상수라 log k에서 더해지는 상수로 빠지고,
+# AUC는 지진(=대부분 같은 현) 안의 순위만 보므로 영향이 거의 없다.
+# 키는 시정촌코드 앞 두 자리(都道府県 코드)다.
+PREFECTURE_CAPITAL_LAT: dict[str, float] = {
+    "01": 43.06, "03": 39.70, "04": 38.27, "05": 39.72, "06": 38.24, "07": 37.75,
+    "15": 37.90, "16": 36.70, "17": 36.59, "20": 36.65, "26": 35.02, "27": 34.69,
+    "31": 35.50, "32": 35.47, "43": 32.79, "44": 33.24,
+}
+
 
 # ============================================================
 # 8. Tensor dtype
@@ -285,6 +319,11 @@ class PilotABatch:
         [B] float64
         LQ_prior(평균)
 
+    log_k_ls / log_k_lq
+        [B] float64
+        후속실험 3의 면적 항. log(시정촌 총면적 / 격자 한 칸 넓이)
+        LS는 7.5″ 칸, LQ는 15″ 칸 기준이다. prior.AreaPrior에서만 쓴다.
+
     event_idx
         [B] long
         이벤트 index 0~8
@@ -327,6 +366,9 @@ class PilotABatch:
     z_mtn: Tensor 
     pi_ls: Tensor
     pi_lq: Tensor
+    # 후속실험 3: log(시정촌 총면적 / 격자 한 칸 넓이). prior.AreaPrior에서만 쓴다.
+    log_k_ls: Tensor
+    log_k_lq: Tensor
 
     event_idx: Tensor
 
@@ -416,6 +458,8 @@ class PilotABatch:
             "z_mtn": self.z_mtn,
             "pi_ls": self.pi_ls,
             "pi_lq": self.pi_lq,
+            "log_k_ls": self.log_k_ls,
+            "log_k_lq": self.log_k_lq,
             "event_idx": self.event_idx,
         }.items():
 
@@ -468,6 +512,8 @@ class PilotABatch:
             "z_mtn": self.z_mtn,
             "pi_ls": self.pi_ls,
             "pi_lq": self.pi_lq,
+            "log_k_ls": self.log_k_ls,
+            "log_k_lq": self.log_k_lq,
         }
 
         for name, tensor in float_tensors.items():

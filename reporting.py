@@ -66,7 +66,7 @@ EXPECTED_NUM_PARAMS = 48
 
 # 설계식에 나오는 순서대로 정렬하기 위한 기준
 GROUP_ORDER = ["alpha_c", "alpha_e", "beta_c", "delta_c",
-               "gamma_LS", "gamma_LQ", "phi_c", "a", "b"]
+               "gamma_LS", "gamma_LQ", "phi_c", "a", "b", "c", "kappa"]
 
 
 def dump_params(reg, like, pri, path="outputs/params.csv"):
@@ -103,7 +103,17 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
             ("pri", "_a_raw", "a", [0, 1], ["LS", "LQ"], f"bounded[{pri.A_MIN},{pri.A_MAX}]"),
             ("pri", "_b_raw", "b", [0, 1], ["LS", "LQ"], f"bounded[{pri.B_MIN},{pri.B_MAX}]"),
         ]
+    elif mode == "area":
+        # 후속실험 3의 AreaPrior. a=c=1 고정, b_LS만(그것도 --fix-b가 아닐 때만) 학습한다.
+        if not pri.fix_b:
+            spec += [
+                ("pri", "_b_raw", "b", [0], ["LS"], f"bounded[{pri.B_MIN},{pri.B_MAX}]"),
+            ]
     # mode == "fixed"이면 a=1, b=0은 학습 파라미터가 아니므로 아래에서 고정행으로 넣는다.
+
+    # 후속실험 3의 산지 계수. 범위 제약이 없어 transform=none이고 LS에만 들어간다.
+    if getattr(pri, "mtn_prior", False):
+        spec += [("pri", "kappa", "kappa", [0], ["LS"], "none")]
     mods = {"reg": reg, "lik": like, "pri": pri}
     named = {k: dict(m.named_parameters()) for k, m in mods.items()}
 
@@ -146,6 +156,25 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
         "idx": ref, "label": INDEX_TO_EVENT[ref], "transform": "fixed(reference)",
         "raw_value": 0.0, "value": 0.0,
     })
+
+    if mode == "area":
+        # 학습 대상이 아니지만 어떤 값이 쓰였는지는 남겨야 재현이 된다.
+        for i, lab in enumerate(["LS", "LQ"]):
+            rows.append({
+                "module": "pri", "group": "a", "param": "a", "idx": i, "label": lab,
+                "transform": "fixed(mode=area)", "raw_value": 1.0, "value": 1.0,
+            })
+            rows.append({
+                "module": "pri", "group": "c", "param": "c", "idx": i, "label": lab,
+                "transform": "fixed(mode=area)", "raw_value": 1.0, "value": 1.0,
+            })
+        # b_LQ는 항상 0 고정이고, --fix-b이면 b_LS도 0 고정이다.
+        fixed_b = [("LQ", 1)] if not pri.fix_b else [("LS", 0), ("LQ", 1)]
+        for lab, i in fixed_b:
+            rows.append({
+                "module": "pri", "group": "b", "param": "b", "idx": i, "label": lab,
+                "transform": "fixed(mode=area)", "raw_value": 0.0, "value": 0.0,
+            })
 
     if mode == "fixed":
         # 학습 대상이 아니지만 어떤 값이 쓰였는지는 남겨야 재현이 된다.

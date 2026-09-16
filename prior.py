@@ -43,8 +43,12 @@ class Prior(nn.Module):
     B_MIN, B_MAX = -2.0, 2.0
 
     def __init__(self, *args, mode: str = "free", b_bound: float = 2.0,
-                 b_min=None, b_max=None, **kwargs):
+                 b_min=None, b_max=None, mtn_prior: bool = False, **kwargs):
         super().__init__(*args, **kwargs)
+
+        # 후속실험 3(LOEO): 켜면 z_LS에 kappa * z_mtn(표준화 산지 비율)을 더한다.
+        # 기본값 False에서는 파라미터도 만들지 않으므로 기존 결과가 그대로 재현된다.
+        self.mtn_prior = bool(mtn_prior)
 
         if mode not in self.MODES:
             raise ValueError(f"mode는 {self.MODES} 중 하나여야 합니다: {mode}")
@@ -87,6 +91,10 @@ class Prior(nn.Module):
             self._a_raw = nn.Parameter(torch.full((2,), a_init, dtype=DTYPE))
             self._b_raw = nn.Parameter(torch.full((2,), b_init, dtype=DTYPE))
 
+        if self.mtn_prior:
+            # 산지 계수. 스칼라 하나, 초기값 0, 범위 제약 없음, LS에만 들어간다.
+            self.kappa = nn.Parameter(torch.zeros(1, dtype=DTYPE))
+
     @property
     def a_value(self) -> Tensor:
         """실제 식에 들어가는 a [2]. LS=0, LQ=1."""
@@ -101,7 +109,8 @@ class Prior(nn.Module):
             return self.B_MIN + (self.B_MAX - self.B_MIN) * torch.sigmoid(self._b_raw)
         return self.b
 
-    def forward(self,pi_ls,pi_lq):
+    def z(self, pi_ls, pi_lq, z_mtn=None):
+        """z_LS, z_LQ [B]. prior 확률 q = sigmoid(z)를 BCE에 쓰려고 분리해 두었다."""
         x_ls=torch.logit(pi_ls,eps=EPS)
         x_lq=torch.logit(pi_lq,eps=EPS)
 
@@ -109,6 +118,16 @@ class Prior(nn.Module):
 
         z_ls=a[0]*x_ls+b[0]
         z_lq=a[1]*x_lq+b[1]
+
+        if self.mtn_prior:
+            if z_mtn is None:
+                raise ValueError("mtn_prior=True이면 z_mtn을 함께 넘겨야 합니다.")
+            z_ls = z_ls + self.kappa * z_mtn
+
+        return z_ls, z_lq
+
+    def forward(self,pi_ls,pi_lq,z_mtn=None):
+        z_ls, z_lq = self.z(pi_ls, pi_lq, z_mtn)
 
         log_p_ls,log_q_ls=F.logsigmoid(z_ls),F.logsigmoid(-z_ls)
         log_p_lq,log_q_lq=F.logsigmoid(z_lq),F.logsigmoid(-z_lq)
@@ -119,3 +138,106 @@ class Prior(nn.Module):
             result.append(w)
 
         return torch.stack(result,dim=-1)
+
+
+class AreaPrior(nn.Module):
+    """후속실험 3의 면적 항 prior. 지시서 §2-1 B 계열이다.
+
+        z_LS = link(pi_LS) + log k_LS + b_LS  (+ kappa * m)
+        z_LQ = link(pi_LQ) + log k_LQ                  (학습 없음)
+
+    USGS 값 pi는 발생확률이 아니라 격자 한 칸에서 덮이는 면적 비율이다.
+    칸끼리 독립이면 시정촌에서 한 곳이라도 날 기대 칸 수가
+        lambda = pi * k,   k = 시정촌 총면적 / 칸 넓이
+    라서 log lambda = log pi + log k 가 된다. 그래서 a = c = 1로 고정한다.
+
+    link
+    ----
+    "logit" : 지시서 §2-1 B의 표기 그대로 logit(pi) + log k. (기본값)
+    "log"   : 기존 면적 항 브랜치(followup3-area-avg-*)가 쓰던 log(pi) + log k.
+              pi가 작아 두 값은 거의 같지만 BCE가 보는 확률 수준이 조금 다르다.
+
+    b_LS는 [b_min, b_max] 안에서만 학습한다(기본 [-2, 4], 초기값 0).
+    clamp는 경계에서 gradient가 0이 되므로 기존 Prior와 같은 sigmoid 재파라미터화를 쓴다.
+    fix_b=True이면 b_LS도 0으로 고정해 학습 파라미터가 하나도 없는 기준선(B0)이 된다.
+    """
+
+    LINKS = ("logit", "log")
+
+    def __init__(self, *, b_min: float = -2.0, b_max: float = 4.0,
+                 fix_b: bool = False, mtn_prior: bool = False, link: str = "logit"):
+        super().__init__()
+
+        if link not in self.LINKS:
+            raise ValueError(f"link는 {self.LINKS} 중 하나여야 합니다: {link}")
+        self.link = link
+        self.mode = "area"
+        self.fix_b = bool(fix_b)
+        self.mtn_prior = bool(mtn_prior)
+
+        b_min, b_max = float(b_min), float(b_max)
+        if not b_min < 0.0 < b_max:
+            raise ValueError(f"b 범위는 초기값 0을 안쪽에 포함해야 합니다: [{b_min}, {b_max}]")
+        self.B_MIN, self.B_MAX = b_min, b_max
+
+        if self.fix_b:
+            # buffer는 optimizer가 잡아가지 않으므로 학습되지 않는다.
+            self.register_buffer("b_ls", torch.zeros(1, dtype=DTYPE))
+        else:
+            b_init = _inverse_sigmoid((0.0 - b_min) / (b_max - b_min))
+            self._b_raw = nn.Parameter(torch.full((1,), b_init, dtype=DTYPE))
+
+        if self.mtn_prior:
+            self.kappa = nn.Parameter(torch.zeros(1, dtype=DTYPE))
+
+    @property
+    def b_value(self) -> Tensor:
+        """실제 식에 들어가는 b_LS 스칼라. b_LQ는 항상 0이다."""
+        if self.fix_b:
+            return self.b_ls
+        return self.B_MIN + (self.B_MAX - self.B_MIN) * torch.sigmoid(self._b_raw)
+
+    def _link(self, pi):
+        if self.link == "logit":
+            return torch.logit(pi, eps=EPS)
+        # log(0)을 피하려고 기존 logit과 같은 EPS로 아래를 자른다.
+        return torch.log(pi.clamp_min(EPS))
+
+    def z(self, pi_ls, pi_lq, log_k_ls, log_k_lq, z_mtn=None):
+        """z_LS, z_LQ [B]."""
+        z_ls = self._link(pi_ls) + log_k_ls + self.b_value
+        z_lq = self._link(pi_lq) + log_k_lq
+
+        if self.mtn_prior:
+            if z_mtn is None:
+                raise ValueError("mtn_prior=True이면 z_mtn을 함께 넘겨야 합니다.")
+            z_ls = z_ls + self.kappa * z_mtn
+
+        return z_ls, z_lq
+
+    def forward(self, pi_ls, pi_lq, log_k_ls, log_k_lq, z_mtn=None):
+        z_ls, z_lq = self.z(pi_ls, pi_lq, log_k_ls, log_k_lq, z_mtn)
+
+        log_p_ls, log_q_ls = F.logsigmoid(z_ls), F.logsigmoid(-z_ls)
+        log_p_lq, log_q_lq = F.logsigmoid(z_lq), F.logsigmoid(-z_lq)
+
+        result = []  # w00, w10, w01, w11
+        for ls, lq in LATENT_STATES:
+            result.append(ls * log_p_ls + (1 - ls) * log_q_ls + lq * log_p_lq + (1 - lq) * log_q_lq)
+        return torch.stack(result, dim=-1)
+
+
+def prior_z(pri, batch):
+    """Prior / AreaPrior 어느 쪽이든 batch에서 (z_LS, z_LQ)를 만든다."""
+    z_mtn = batch.z_mtn if getattr(pri, "mtn_prior", False) else None
+    if isinstance(pri, AreaPrior):
+        return pri.z(batch.pi_ls, batch.pi_lq, batch.log_k_ls, batch.log_k_lq, z_mtn)
+    return pri.z(batch.pi_ls, batch.pi_lq, z_mtn)
+
+
+def prior_log_w(pri, batch):
+    """Prior / AreaPrior 어느 쪽이든 batch에서 4상태 log prior [B, 4]를 만든다."""
+    z_mtn = batch.z_mtn if getattr(pri, "mtn_prior", False) else None
+    if isinstance(pri, AreaPrior):
+        return pri(batch.pi_ls, batch.pi_lq, batch.log_k_ls, batch.log_k_lq, z_mtn)
+    return pri(batch.pi_ls, batch.pi_lq, z_mtn)

@@ -34,13 +34,13 @@ CONDITIONS = [
     ("A0",      "A", "기존 prior, 산지 없음, omega=0 (기존 3번 재현)",        None),
     ("A1",      "A", "기존 prior + kappa·m, omega=0",                        None),
     ("A2",      "A", "기존 prior + kappa·m, omega=4.35 (교수님 제안)",        EVENTS),
-    ("B0",      "B", "면적 항 prior, b=0 고정, omega=0 (면적 항 기준)",       None),
-    ("B1",      "B", "면적 항 prior + kappa·m, omega=0",                      None),
-    ("B2",      "B", "면적 항 prior + kappa·m, omega=4.35 (제안 + 면적 항)",   EVENTS),
-    ("B2-w1",   "B", "(선택) B2의 omega=1 민감도",                            EVENTS),
-    ("B2-w10",  "B", "(선택) B2의 omega=10 민감도",                           EVENTS),
-    ("B0-log",  "B", "(추가) B0를 기존 브랜치의 log(pi) 링크로",               None),
-    ("B2-log",  "B", "(추가) B2를 기존 브랜치의 log(pi) 링크로",               EVENTS),
+    ("B0",       "B", "면적 항 prior, b=0 고정, omega=0 (면적 항 기준)",      None),
+    ("B1",       "B", "면적 항 prior + kappa·m, omega=0",                     None),
+    ("B2",       "B", "면적 항 prior + kappa·m, omega=4.35 (제안 + 면적 항)",  EVENTS),
+    ("B2-w1",    "B", "(선택) B2의 omega=1 민감도",                           EVENTS),
+    ("B2-w10",   "B", "(선택) B2의 omega=10 민감도",                          EVENTS),
+    ("B0-logit", "B", "(민감도) B0를 지시서 §2-1 B 표기인 logit(pi) 링크로",   None),
+    ("B2-logit", "B", "(민감도) B2를 지시서 §2-1 B 표기인 logit(pi) 링크로",   EVENTS),
 ]
 COND_BY_ID = {c[0]: c for c in CONDITIONS}
 
@@ -258,8 +258,11 @@ def run_log(fold_df: pd.DataFrame) -> pd.DataFrame:
                    "아쓰마초(厚真町) 01581: 칸 0.039167 km², k = 10,330 (지시서 확인값 약 10,330)"),
         ("c 적용 범위", "기존 브랜치와 같이 log k를 LS(7.5″)와 LQ(15″) 양쪽에 c=1로 넣는다. "
                      "지시서 §2-1 B의 LQ 식도 같다"),
-        ("링크 함수", "주 조건은 지시서 §2-1 B 그대로 logit(pi) + log k. "
-                    "기존 브랜치는 log(pi) + log k였고, 이것도 B0-log / B2-log로 함께 돌렸다"),
+        ("링크 함수", "주 조건은 log(pi) + log k. 유도식 log lambda = log pi + log k 그대로이고 "
+                    "기존 면적 항 브랜치(followup3-area-avg-*)와 같다. "
+                    "지시서 §2-1 B는 logit으로 적혀 있어 둘 다 돌렸는데 LS는 순위가 완전히 같고 "
+                    "(가중 AUC 0.8550 동일) LQ만 log가 앞서(0.7812 vs 0.7768) log를 주 조건으로 정했다. "
+                    "logit은 B0-logit / B2-logit으로 남긴다"),
         ("BCE 구현", "F.binary_cross_entropy_with_logits(z_LS[대상], y, reduction='sum'), "
                    "확률은 사후가 아니라 prior q_LS = sigmoid(z_LS)"),
         ("기존 loss", "손대지 않았다. loss = NLL(418행 합) + 10·(Σγ_LS² + Σγ_LQ²). 행 수로 나누지 않는다"),
@@ -345,7 +348,7 @@ def main():
               for col in ("p_ls_post", "q_ls_prior")}
 
     comparisons = [("A2", "A0"), ("A2", "A1"), ("B2", "B0"), ("B2", "B1"), ("B2", "A2"),
-                   ("B2-w1", "B0"), ("B2-w10", "B0"), ("B2-log", "B0-log")]
+                   ("B2-w1", "B0"), ("B2-w10", "B0"), ("B2-logit", "B0-logit")]
     boot_rows = []
     for other, base in comparisons:
         for label, col in (("사후 p_LS", "p_ls_post"), ("prior q_LS", "q_ls_prior")):
@@ -359,7 +362,7 @@ def main():
         "B2": verdict("B2", "B0", tables, boot_rows),
         "B2-w1": verdict("B2-w1", "B0", tables, boot_rows),
         "B2-w10": verdict("B2-w10", "B0", tables, boot_rows),
-        "B2-log": verdict("B2-log", "B0-log", tables, boot_rows),
+        "B2-logit": verdict("B2-logit", "B0-logit", tables, boot_rows),
     }
 
     # ---- 시트 ----
@@ -422,9 +425,9 @@ def main():
         {"항목": "B0 LS 사후 가중", "재현값": tables["B0"]["ls_post_wavg"],
          "기준값": 0.855, "차이": tables["B0"]["ls_post_wavg"] - 0.855,
          "출처": "지시서 §6 참고 기준값 '면적 항 사후'"},
-        {"항목": "B0-log LS 사후 가중", "재현값": tables["B0-log"]["ls_post_wavg"],
-         "기준값": 0.855, "차이": tables["B0-log"]["ls_post_wavg"] - 0.855,
-         "출처": "같은 기준값을 기존 브랜치 링크(log)로"},
+        {"항목": "B0-logit LS 사후 가중", "재현값": tables["B0-logit"]["ls_post_wavg"],
+         "기준값": 0.855, "차이": tables["B0-logit"]["ls_post_wavg"] - 0.855,
+         "출처": "같은 기준값을 지시서 §2-1 B 표기(logit) 링크로"},
     ])
 
     ref_df = pd.DataFrame(REFERENCE, columns=["참고 기준", "LS 가중 AUC"])

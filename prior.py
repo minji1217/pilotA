@@ -153,9 +153,14 @@ class AreaPrior(nn.Module):
 
     link
     ----
-    "logit" : 지시서 §2-1 B의 표기 그대로 logit(pi) + log k. (기본값)
-    "log"   : 기존 면적 항 브랜치(followup3-area-avg-*)가 쓰던 log(pi) + log k.
-              pi가 작아 두 값은 거의 같지만 BCE가 보는 확률 수준이 조금 다르다.
+    "log"   : log(pi) + log k. (기본값)
+              유도식 log lambda = log pi + log k 그대로이고, 기존 면적 항 브랜치
+              (followup3-area-avg-*)가 쓰던 것과 같다.
+    "logit" : 지시서 §2-1 B의 표기대로 logit(pi) + log k.
+
+    지시서 §2-1 B는 logit으로 적혀 있으나 기존 브랜치는 log였다. 둘 다 돌려본 결과
+    LS는 순위가 한 자리도 다르지 않았고(가중 AUC 0.8550 동일) LQ만 log가 앞서
+    (0.7812 vs 0.7768) log를 주 조건으로 쓰기로 정했다. logit은 민감도로 남긴다.
 
     b_LS는 [b_min, b_max] 안에서만 학습한다(기본 [-2, 4], 초기값 0).
     clamp는 경계에서 gradient가 0이 되므로 기존 Prior와 같은 sigmoid 재파라미터화를 쓴다.
@@ -165,7 +170,7 @@ class AreaPrior(nn.Module):
     LINKS = ("logit", "log")
 
     def __init__(self, *, b_min: float = -2.0, b_max: float = 4.0,
-                 fix_b: bool = False, mtn_prior: bool = False, link: str = "logit"):
+                 fix_b: bool = False, mtn_prior: bool = False, link: str = "log"):
         super().__init__()
 
         if link not in self.LINKS:

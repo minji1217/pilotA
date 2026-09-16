@@ -1,18 +1,18 @@
 {
-  "argv": "train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 10 --test-event 2018 훗카이도 --out results/loeo/B2-w10/2018 훗카이도",
+  "argv": "train.py --prior-family area --area-link log --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 10 --test-event 2018 훗카이도 --out results/loeo/B2-w10/2018 훗카이도",
   "prior_family": "area",
   "prior_mode": "free",
-  "area_link": "logit",
+  "area_link": "log",
   "fix_b": false,
   "mtn_prior": true,
   "omega": 10.0,
   "test_event": "2018 훗카이도",
   "n_bce_rows": 112,
   "n_params": 46,
-  "kappa": 0.16721890919218024,
-  "b_ls": 0.018696806216034645,
+  "kappa": 0.1692036965032984,
+  "b_ls": 0.023349135883297123,
   "a_ls": "",
-  "loss_base_final": 6380.3883899381,
-  "bce_sum_final": 28.31532974253771,
-  "loss_total_final": 6663.541687363477
+  "loss_base_final": 6380.336037951003,
+  "bce_sum_final": 28.305762318768522,
+  "loss_total_final": 6663.393661138688
 }

@@ -1,8 +1,227 @@
 ﻿항목,내용,학습 파라미터 수,실행 명령
-브랜치,followup3-loeo,해당 없음(설명 행),해당 없음(설명 행)
-커밋 해시,0c824047f9c18d2672ba2c2c26287edb60f05781,해당 없음(설명 행),해당 없음(설명 행)
-작업 트리 상태,"M score_loeo.py
-?? results/",해당 없음(설명 행),해당 없음(설명 행)
+브랜치,claude/vigilant-wozniak-atum1b,해당 없음(설명 행),해당 없음(설명 행)
+커밋 해시,396d2b3f3e9dd7cd27e8f938c33ca5546c7f2f8f,해당 없음(설명 행),해당 없음(설명 행)
+작업 트리 상태,"M prior.py
+ D results/loeo/B0-log/eval_detail.csv
+ D results/loeo/B0-log/eval_per_event.csv
+ D results/loeo/B0-log/eval_scores.csv
+ D results/loeo/B0-log/eval_summary.csv
+ D results/loeo/B0-log/loss_curve.png
+ D results/loeo/B0-log/loss_history.csv
+ D results/loeo/B0-log/params.csv
+ D results/loeo/B0-log/predictions.csv
+ D results/loeo/B0-log/run_meta.json
+ M results/loeo/B0/eval_detail.csv
+ M results/loeo/B0/eval_per_event.csv
+ M results/loeo/B0/eval_scores.csv
+ M results/loeo/B0/eval_summary.csv
+ M results/loeo/B0/loss_curve.png
+ M results/loeo/B0/loss_history.csv
+ M results/loeo/B0/params.csv
+ M results/loeo/B0/predictions.csv
+ M results/loeo/B0/run_meta.json
+ M results/loeo/B1/eval_detail.csv
+ M results/loeo/B1/eval_per_event.csv
+ M results/loeo/B1/eval_scores.csv
+ M results/loeo/B1/eval_summary.csv
+ M results/loeo/B1/loss_curve.png
+ M results/loeo/B1/loss_history.csv
+ M results/loeo/B1/params.csv
+ M results/loeo/B1/predictions.csv
+ M results/loeo/B1/run_meta.json
+ D ""results/loeo/B2-log/2000 \353\217\227\355\206\240\353\246\254/eval_detail.csv""
+ D ""results/loeo/B2-log/2000 \353\217\227\355\206\240\353\246\254/eval_per_event.csv""
+ D ""results/loeo/B2-log/2000 \353\217\227\355\206\240\353\246\254/eval_scores.csv""
+ D ""results/loeo/B2-log/2000 \353\217\227\355\206\240\353\246\254/eval_summary.csv""
+ D ""results/loeo/B2-log/2000 \353\217\227\355\206\240\353\246\254/loss_curve.png""
+ D ""results/loeo/B2-log/2000 \353\217\227\355\206\240\353\246\254/loss_history.csv""
+ D ""results/loeo/B2-log/2000 \353\217\227\355\206\240\353\246\254/params.csv""
+ D ""results/loeo/B2-log/2000 \353\217\227\355\206\240\353\246\254/predictions.csv""
+ D ""results/loeo/B2-log/2000 \353\217\227\355\206\240\353\246\254/run_meta.json""
+ D ""results/loeo/B2-log/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/eval_detail.csv""
+ D ""results/loeo/B2-log/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/eval_per_event.csv""
+ D ""results/loeo/B2-log/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/eval_scores.csv""
+ D ""results/loeo/B2-log/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/eval_summary.csv""
+ D ""results/loeo/B2-log/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/loss_curve.png""
+ D ""results/loeo/B2-log/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/loss_history.csv""
+ D ""results/loeo/B2-log/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/params.csv""
+ D ""results/loeo/B2-log/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/predictions.csv""
+ D ""results/loeo/B2-log/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/run_meta.json""
+ D ""results/loeo/B2-log/2016 \352\265\254\353\247\210\353\252\250\355\206\240/eval_detail.csv""
+ D ""results/loeo/B2-log/2016 \352\265\254\353\247\210\353\252\250\355\206\240/eval_per_event.csv""
+ D ""results/loeo/B2-log/2016 \352\265\254\353\247\210\353\252\250\355\206\240/eval_scores.csv""
+ D ""results/loeo/B2-log/2016 \352\265\254\353\247\210\353\252\250\355\206\240/eval_summary.csv""
+ D ""results/loeo/B2-log/2016 \352\265\254\353\247\210\353\252\250\355\206\240/loss_curve.png""
+ D ""results/loeo/B2-log/2016 \352\265\254\353\247\210\353\252\250\355\206\240/loss_history.csv""
+ D ""results/loeo/B2-log/2016 \352\265\254\353\247\210\353\252\250\355\206\240/params.csv""
+ D ""results/loeo/B2-log/2016 \352\265\254\353\247\210\353\252\250\355\206\240/predictions.csv""
+ D ""results/loeo/B2-log/2016 \352\265\254\353\247\210\353\252\250\355\206\240/run_meta.json""
+ D ""results/loeo/B2-log/2018 \354\230\244\354\202\254\354\271\264/eval_detail.csv""
+ D ""results/loeo/B2-log/2018 \354\230\244\354\202\254\354\271\264/eval_per_event.csv""
+ D ""results/loeo/B2-log/2018 \354\230\244\354\202\254\354\271\264/eval_scores.csv""
+ D ""results/loeo/B2-log/2018 \354\230\244\354\202\254\354\271\264/eval_summary.csv""
+ D ""results/loeo/B2-log/2018 \354\230\244\354\202\254\354\271\264/loss_curve.png""
+ D ""results/loeo/B2-log/2018 \354\230\244\354\202\254\354\271\264/loss_history.csv""
+ D ""results/loeo/B2-log/2018 \354\230\244\354\202\254\354\271\264/params.csv""
+ D ""results/loeo/B2-log/2018 \354\230\244\354\202\254\354\271\264/predictions.csv""
+ D ""results/loeo/B2-log/2018 \354\230\244\354\202\254\354\271\264/run_meta.json""
+ D ""results/loeo/B2-log/2018 \355\233\227\354\271\264\354\235\264\353\217\204/eval_detail.csv""
+ D ""results/loeo/B2-log/2018 \355\233\227\354\271\264\354\235\264\353\217\204/eval_per_event.csv""
+ D ""results/loeo/B2-log/2018 \355\233\227\354\271\264\354\235\264\353\217\204/eval_scores.csv""
+ D ""results/loeo/B2-log/2018 \355\233\227\354\271\264\354\235\264\353\217\204/eval_summary.csv""
+ D ""results/loeo/B2-log/2018 \355\233\227\354\271\264\354\235\264\353\217\204/loss_curve.png""
+ D ""results/loeo/B2-log/2018 \355\233\227\354\271\264\354\235\264\353\217\204/loss_history.csv""
+ D ""results/loeo/B2-log/2018 \355\233\227\354\271\264\354\235\264\353\217\204/params.csv""
+ D ""results/loeo/B2-log/2018 \355\233\227\354\271\264\354\235\264\353\217\204/predictions.csv""
+ D ""results/loeo/B2-log/2018 \355\233\227\354\271\264\354\235\264\353\217\204/run_meta.json""
+ M ""results/loeo/B2-w1/2000 \353\217\227\355\206\240\353\246\254/eval_detail.csv""
+ M ""results/loeo/B2-w1/2000 \353\217\227\355\206\240\353\246\254/eval_per_event.csv""
+ M ""results/loeo/B2-w1/2000 \353\217\227\355\206\240\353\246\254/eval_scores.csv""
+ M ""results/loeo/B2-w1/2000 \353\217\227\355\206\240\353\246\254/eval_summary.csv""
+ M ""results/loeo/B2-w1/2000 \353\217\227\355\206\240\353\246\254/loss_curve.png""
+ M ""results/loeo/B2-w1/2000 \353\217\227\355\206\240\353\246\254/loss_history.csv""
+ M ""results/loeo/B2-w1/2000 \353\217\227\355\206\240\353\246\254/params.csv""
+ M ""results/loeo/B2-w1/2000 \353\217\227\355\206\240\353\246\254/predictions.csv""
+ M ""results/loeo/B2-w1/2000 \353\217\227\355\206\240\353\246\254/run_meta.json""
+ M ""results/loeo/B2-w1/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/eval_detail.csv""
+ M ""results/loeo/B2-w1/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/eval_per_event.csv""
+ M ""results/loeo/B2-w1/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/eval_scores.csv""
+ M ""results/loeo/B2-w1/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/eval_summary.csv""
+ M ""results/loeo/B2-w1/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/loss_curve.png""
+ M ""results/loeo/B2-w1/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/loss_history.csv""
+ M ""results/loeo/B2-w1/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/params.csv""
+ M ""results/loeo/B2-w1/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/predictions.csv""
+ M ""results/loeo/B2-w1/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/run_meta.json""
+ M ""results/loeo/B2-w1/2016 \352\265\254\353\247\210\353\252\250\355\206\240/eval_detail.csv""
+ M ""results/loeo/B2-w1/2016 \352\265\254\353\247\210\353\252\250\355\206\240/eval_per_event.csv""
+ M ""results/loeo/B2-w1/2016 \352\265\254\353\247\210\353\252\250\355\206\240/eval_scores.csv""
+ M ""results/loeo/B2-w1/2016 \352\265\254\353\247\210\353\252\250\355\206\240/eval_summary.csv""
+ M ""results/loeo/B2-w1/2016 \352\265\254\353\247\210\353\252\250\355\206\240/loss_curve.png""
+ M ""results/loeo/B2-w1/2016 \352\265\254\353\247\210\353\252\250\355\206\240/loss_history.csv""
+ M ""results/loeo/B2-w1/2016 \352\265\254\353\247\210\353\252\250\355\206\240/params.csv""
+ M ""results/loeo/B2-w1/2016 \352\265\254\353\247\210\353\252\250\355\206\240/predictions.csv""
+ M ""results/loeo/B2-w1/2016 \352\265\254\353\247\210\353\252\250\355\206\240/run_meta.json""
+ M ""results/loeo/B2-w1/2018 \354\230\244\354\202\254\354\271\264/eval_detail.csv""
+ M ""results/loeo/B2-w1/2018 \354\230\244\354\202\254\354\271\264/eval_per_event.csv""
+ M ""results/loeo/B2-w1/2018 \354\230\244\354\202\254\354\271\264/eval_scores.csv""
+ M ""results/loeo/B2-w1/2018 \354\230\244\354\202\254\354\271\264/eval_summary.csv""
+ M ""results/loeo/B2-w1/2018 \354\230\244\354\202\254\354\271\264/loss_curve.png""
+ M ""results/loeo/B2-w1/2018 \354\230\244\354\202\254\354\271\264/loss_history.csv""
+ M ""results/loeo/B2-w1/2018 \354\230\244\354\202\254\354\271\264/params.csv""
+ M ""results/loeo/B2-w1/2018 \354\230\244\354\202\254\354\271\264/predictions.csv""
+ M ""results/loeo/B2-w1/2018 \354\230\244\354\202\254\354\271\264/run_meta.json""
+ M ""results/loeo/B2-w1/2018 \355\233\227\354\271\264\354\235\264\353\217\204/eval_detail.csv""
+ M ""results/loeo/B2-w1/2018 \355\233\227\354\271\264\354\235\264\353\217\204/eval_per_event.csv""
+ M ""results/loeo/B2-w1/2018 \355\233\227\354\271\264\354\235\264\353\217\204/eval_scores.csv""
+ M ""results/loeo/B2-w1/2018 \355\233\227\354\271\264\354\235\264\353\217\204/eval_summary.csv""
+ M ""results/loeo/B2-w1/2018 \355\233\227\354\271\264\354\235\264\353\217\204/loss_curve.png""
+ M ""results/loeo/B2-w1/2018 \355\233\227\354\271\264\354\235\264\353\217\204/loss_history.csv""
+ M ""results/loeo/B2-w1/2018 \355\233\227\354\271\264\354\235\264\353\217\204/params.csv""
+ M ""results/loeo/B2-w1/2018 \355\233\227\354\271\264\354\235\264\353\217\204/predictions.csv""
+ M ""results/loeo/B2-w1/2018 \355\233\227\354\271\264\354\235\264\353\217\204/run_meta.json""
+ M ""results/loeo/B2-w10/2000 \353\217\227\355\206\240\353\246\254/eval_detail.csv""
+ M ""results/loeo/B2-w10/2000 \353\217\227\355\206\240\353\246\254/eval_per_event.csv""
+ M ""results/loeo/B2-w10/2000 \353\217\227\355\206\240\353\246\254/eval_scores.csv""
+ M ""results/loeo/B2-w10/2000 \353\217\227\355\206\240\353\246\254/eval_summary.csv""
+ M ""results/loeo/B2-w10/2000 \353\217\227\355\206\240\353\246\254/loss_curve.png""
+ M ""results/loeo/B2-w10/2000 \353\217\227\355\206\240\353\246\254/loss_history.csv""
+ M ""results/loeo/B2-w10/2000 \353\217\227\355\206\240\353\246\254/params.csv""
+ M ""results/loeo/B2-w10/2000 \353\217\227\355\206\240\353\246\254/predictions.csv""
+ M ""results/loeo/B2-w10/2000 \353\217\227\355\206\240\353\246\254/run_meta.json""
+ M ""results/loeo/B2-w10/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/eval_detail.csv""
+ M ""results/loeo/B2-w10/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/eval_per_event.csv""
+ M ""results/loeo/B2-w10/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/eval_scores.csv""
+ M ""results/loeo/B2-w10/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/eval_summary.csv""
+ M ""results/loeo/B2-w10/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/loss_curve.png""
+ M ""results/loeo/B2-w10/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/loss_history.csv""
+ M ""results/loeo/B2-w10/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/params.csv""
+ M ""results/loeo/B2-w10/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/predictions.csv""
+ M ""results/loeo/B2-w10/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/run_meta.json""
+ M ""results/loeo/B2-w10/2016 \352\265\254\353\247\210\353\252\250\355\206\240/eval_detail.csv""
+ M ""results/loeo/B2-w10/2016 \352\265\254\353\247\210\353\252\250\355\206\240/eval_per_event.csv""
+ M ""results/loeo/B2-w10/2016 \352\265\254\353\247\210\353\252\250\355\206\240/eval_scores.csv""
+ M ""results/loeo/B2-w10/2016 \352\265\254\353\247\210\353\252\250\355\206\240/eval_summary.csv""
+ M ""results/loeo/B2-w10/2016 \352\265\254\353\247\210\353\252\250\355\206\240/loss_curve.png""
+ M ""results/loeo/B2-w10/2016 \352\265\254\353\247\210\353\252\250\355\206\240/loss_history.csv""
+ M ""results/loeo/B2-w10/2016 \352\265\254\353\247\210\353\252\250\355\206\240/params.csv""
+ M ""results/loeo/B2-w10/2016 \352\265\254\353\247\210\353\252\250\355\206\240/predictions.csv""
+ M ""results/loeo/B2-w10/2016 \352\265\254\353\247\210\353\252\250\355\206\240/run_meta.json""
+ M ""results/loeo/B2-w10/2018 \354\230\244\354\202\254\354\271\264/eval_detail.csv""
+ M ""results/loeo/B2-w10/2018 \354\230\244\354\202\254\354\271\264/eval_per_event.csv""
+ M ""results/loeo/B2-w10/2018 \354\230\244\354\202\254\354\271\264/eval_scores.csv""
+ M ""results/loeo/B2-w10/2018 \354\230\244\354\202\254\354\271\264/eval_summary.csv""
+ M ""results/loeo/B2-w10/2018 \354\230\244\354\202\254\354\271\264/loss_curve.png""
+ M ""results/loeo/B2-w10/2018 \354\230\244\354\202\254\354\271\264/loss_history.csv""
+ M ""results/loeo/B2-w10/2018 \354\230\244\354\202\254\354\271\264/params.csv""
+ M ""results/loeo/B2-w10/2018 \354\230\244\354\202\254\354\271\264/predictions.csv""
+ M ""results/loeo/B2-w10/2018 \354\230\244\354\202\254\354\271\264/run_meta.json""
+ M ""results/loeo/B2-w10/2018 \355\233\227\354\271\264\354\235\264\353\217\204/eval_detail.csv""
+ M ""results/loeo/B2-w10/2018 \355\233\227\354\271\264\354\235\264\353\217\204/eval_per_event.csv""
+ M ""results/loeo/B2-w10/2018 \355\233\227\354\271\264\354\235\264\353\217\204/eval_scores.csv""
+ M ""results/loeo/B2-w10/2018 \355\233\227\354\271\264\354\235\264\353\217\204/eval_summary.csv""
+ M ""results/loeo/B2-w10/2018 \355\233\227\354\271\264\354\235\264\353\217\204/loss_curve.png""
+ M ""results/loeo/B2-w10/2018 \355\233\227\354\271\264\354\235\264\353\217\204/loss_history.csv""
+ M ""results/loeo/B2-w10/2018 \355\233\227\354\271\264\354\235\264\353\217\204/params.csv""
+ M ""results/loeo/B2-w10/2018 \355\233\227\354\271\264\354\235\264\353\217\204/predictions.csv""
+ M ""results/loeo/B2-w10/2018 \355\233\227\354\271\264\354\235\264\353\217\204/run_meta.json""
+ M ""results/loeo/B2/2000 \353\217\227\355\206\240\353\246\254/eval_detail.csv""
+ M ""results/loeo/B2/2000 \353\217\227\355\206\240\353\246\254/eval_per_event.csv""
+ M ""results/loeo/B2/2000 \353\217\227\355\206\240\353\246\254/eval_scores.csv""
+ M ""results/loeo/B2/2000 \353\217\227\355\206\240\353\246\254/eval_summary.csv""
+ M ""results/loeo/B2/2000 \353\217\227\355\206\240\353\246\254/loss_curve.png""
+ M ""results/loeo/B2/2000 \353\217\227\355\206\240\353\246\254/loss_history.csv""
+ M ""results/loeo/B2/2000 \353\217\227\355\206\240\353\246\254/params.csv""
+ M ""results/loeo/B2/2000 \353\217\227\355\206\240\353\246\254/predictions.csv""
+ M ""results/loeo/B2/2000 \353\217\227\355\206\240\353\246\254/run_meta.json""
+ M ""results/loeo/B2/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/eval_detail.csv""
+ M ""results/loeo/B2/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/eval_per_event.csv""
+ M ""results/loeo/B2/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/eval_scores.csv""
+ M ""results/loeo/B2/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/eval_summary.csv""
+ M ""results/loeo/B2/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/loss_curve.png""
+ M ""results/loeo/B2/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/loss_history.csv""
+ M ""results/loeo/B2/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/params.csv""
+ M ""results/loeo/B2/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/predictions.csv""
+ M ""results/loeo/B2/2004 \353\213\210\352\260\200\355\203\200\355\230\204\354\243\274\354\227\220\354\223\260/run_meta.json""
+ M ""results/loeo/B2/2016 \352\265\254\353\247\210\353\252\250\355\206\240/eval_detail.csv""
+ M ""results/loeo/B2/2016 \352\265\254\353\247\210\353\252\250\355\206\240/eval_per_event.csv""
+ M ""results/loeo/B2/2016 \352\265\254\353\247\210\353\252\250\355\206\240/eval_scores.csv""
+ M ""results/loeo/B2/2016 \352\265\254\353\247\210\353\252\250\355\206\240/eval_summary.csv""
+ M ""results/loeo/B2/2016 \352\265\254\353\247\210\353\252\250\355\206\240/loss_curve.png""
+ M ""results/loeo/B2/2016 \352\265\254\353\247\210\353\252\250\355\206\240/loss_history.csv""
+ M ""results/loeo/B2/2016 \352\265\254\353\247\210\353\252\250\355\206\240/params.csv""
+ M ""results/loeo/B2/2016 \352\265\254\353\247\210\353\252\250\355\206\240/predictions.csv""
+ M ""results/loeo/B2/2016 \352\265\254\353\247\210\353\252\250\355\206\240/run_meta.json""
+ M ""results/loeo/B2/2018 \354\230\244\354\202\254\354\271\264/eval_detail.csv""
+ M ""results/loeo/B2/2018 \354\230\244\354\202\254\354\271\264/eval_per_event.csv""
+ M ""results/loeo/B2/2018 \354\230\244\354\202\254\354\271\264/eval_scores.csv""
+ M ""results/loeo/B2/2018 \354\230\244\354\202\254\354\271\264/eval_summary.csv""
+ M ""results/loeo/B2/2018 \354\230\244\354\202\254\354\271\264/loss_curve.png""
+ M ""results/loeo/B2/2018 \354\230\244\354\202\254\354\271\264/loss_history.csv""
+ M ""results/loeo/B2/2018 \354\230\244\354\202\254\354\271\264/params.csv""
+ M ""results/loeo/B2/2018 \354\230\244\354\202\254\354\271\264/predictions.csv""
+ M ""results/loeo/B2/2018 \354\230\244\354\202\254\354\271\264/run_meta.json""
+ M ""results/loeo/B2/2018 \355\233\227\354\271\264\354\235\264\353\217\204/eval_detail.csv""
+ M ""results/loeo/B2/2018 \355\233\227\354\271\264\354\235\264\353\217\204/eval_per_event.csv""
+ M ""results/loeo/B2/2018 \355\233\227\354\271\264\354\235\264\353\217\204/eval_scores.csv""
+ M ""results/loeo/B2/2018 \355\233\227\354\271\264\354\235\264\353\217\204/eval_summary.csv""
+ M ""results/loeo/B2/2018 \355\233\227\354\271\264\354\235\264\353\217\204/loss_curve.png""
+ M ""results/loeo/B2/2018 \355\233\227\354\271\264\354\235\264\353\217\204/loss_history.csv""
+ M ""results/loeo/B2/2018 \355\233\227\354\271\264\354\235\264\353\217\204/params.csv""
+ M ""results/loeo/B2/2018 \355\233\227\354\271\264\354\235\264\353\217\204/predictions.csv""
+ M ""results/loeo/B2/2018 \355\233\227\354\271\264\354\235\264\353\217\204/run_meta.json""
+ D ""results/loeo/LOEO_\352\262\260\352\263\274.xlsx""
+ D ""results/loeo/sheet_\353\266\200\355\212\270\354\212\244\355\212\270\353\236\251.csv""
+ D ""results/loeo/sheet_\354\213\244\355\226\211\352\270\260\353\241\235.csv""
+ D ""results/loeo/sheet_\354\232\224\354\225\275.csv""
+ D ""results/loeo/sheet_\354\235\264\353\262\244\355\212\270\353\263\204.csv""
+ D ""results/loeo/sheet_\354\236\254\355\230\204.csv""
+ D ""results/loeo/sheet_\354\260\270\352\263\240\352\270\260\354\244\200\352\260\222.csv""
+ D ""results/loeo/sheet_\355\232\214\354\260\250\353\263\204.csv""
+ M run_loeo.sh
+ M score_loeo.py
+ M train.py
+?? results/loeo/B0-logit/
+?? results/loeo/B2-logit/",해당 없음(설명 행),해당 없음(설명 행)
 실행 스크립트,run_loeo.sh (학습 30회) -> score_loeo.py (채점),해당 없음(설명 행),해당 없음(설명 행)
 공통 설정,3000 epoch / Adam lr 0.02 / weight_decay 0 / lam_gamma 10 / seed 0,해당 없음(설명 행),해당 없음(설명 행)
 학습 행 수,"418행 (모든 조건 동일, 시험 지진의 피해 건수도 NLL에 포함)",해당 없음(설명 행),해당 없음(설명 행)
@@ -13,7 +232,7 @@
 칸 넓이 식,기존 면적 항 브랜치(followup3-area-avg-*)의 계산을 그대로 옮겼다. cell = (arcsec/3600 × 111.32 × cos(위도)) × (arcsec/3600 × 110.95). 지시서 §2-2의 0.23160² × cos(위도)와는 0.1% 미만 차이,해당 없음(설명 행),해당 없음(설명 행)
 k 확인값,"구마모토시(熊本市) 43100: 칸 0.045065 km², k = 8,661 (지시서 확인값 약 8,653). 아쓰마초(厚真町) 01581: 칸 0.039167 km², k = 10,330 (지시서 확인값 약 10,330)",해당 없음(설명 행),해당 없음(설명 행)
 c 적용 범위,기존 브랜치와 같이 log k를 LS(7.5″)와 LQ(15″) 양쪽에 c=1로 넣는다. 지시서 §2-1 B의 LQ 식도 같다,해당 없음(설명 행),해당 없음(설명 행)
-링크 함수,"주 조건은 지시서 §2-1 B 그대로 logit(pi) + log k. 기존 브랜치는 log(pi) + log k였고, 이것도 B0-log / B2-log로 함께 돌렸다",해당 없음(설명 행),해당 없음(설명 행)
+링크 함수,주 조건은 log(pi) + log k. 유도식 log lambda = log pi + log k 그대로이고 기존 면적 항 브랜치(followup3-area-avg-*)와 같다. 지시서 §2-1 B는 logit으로 적혀 있어 둘 다 돌렸는데 LS는 순위가 완전히 같고 (가중 AUC 0.8550 동일) LQ만 log가 앞서(0.7812 vs 0.7768) log를 주 조건으로 정했다. logit은 B0-logit / B2-logit으로 남긴다,해당 없음(설명 행),해당 없음(설명 행)
 BCE 구현,"F.binary_cross_entropy_with_logits(z_LS[대상], y, reduction='sum'), 확률은 사후가 아니라 prior q_LS = sigmoid(z_LS)",해당 없음(설명 행),해당 없음(설명 행)
 기존 loss,손대지 않았다. loss = NLL(418행 합) + 10·(Σγ_LS² + Σγ_LQ²). 행 수로 나누지 않는다,해당 없음(설명 행),해당 없음(설명 행)
 옵션 끈 상태 확인,모든 새 옵션을 기본값으로 두고 돌린 A0의 predictions.csv / params.csv가 코드 수정 전 결과와 완전히 같다(diff 무차이),해당 없음(설명 행),해당 없음(설명 행)
@@ -28,26 +247,26 @@ NaN / 발산,"30회 실행 전부 loss_history에 NaN·Inf 없음, 최종 loss <
 실행 A2,시험 지진: 2016 구마모토,49,train.py --prior-mode bounded --lam-gamma 10 --b-min -2 --b-max 2 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2016 구마모토 --out results/loeo/A2/2016 구마모토
 실행 A2,시험 지진: 2018 오사카,49,train.py --prior-mode bounded --lam-gamma 10 --b-min -2 --b-max 2 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2018 오사카 --out results/loeo/A2/2018 오사카
 실행 A2,시험 지진: 2018 훗카이도,49,train.py --prior-mode bounded --lam-gamma 10 --b-min -2 --b-max 2 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2018 훗카이도 --out results/loeo/A2/2018 훗카이도
-실행 B0,시험 지진: 전체(가린 지진 없음),44,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --fix-b --out results/loeo/B0
-실행 B1,시험 지진: 전체(가린 지진 없음),46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --out results/loeo/B1
-실행 B2,시험 지진: 2000 돗토리,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2000 돗토리 --out results/loeo/B2/2000 돗토리
-실행 B2,시험 지진: 2004 니가타현주에쓰,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2004 니가타현주에쓰 --out results/loeo/B2/2004 니가타현주에쓰
-실행 B2,시험 지진: 2016 구마모토,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2016 구마모토 --out results/loeo/B2/2016 구마모토
-실행 B2,시험 지진: 2018 오사카,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2018 오사카 --out results/loeo/B2/2018 오사카
-실행 B2,시험 지진: 2018 훗카이도,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2018 훗카이도 --out results/loeo/B2/2018 훗카이도
-실행 B2-w1,시험 지진: 2000 돗토리,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 1 --test-event 2000 돗토리 --out results/loeo/B2-w1/2000 돗토리
-실행 B2-w1,시험 지진: 2004 니가타현주에쓰,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 1 --test-event 2004 니가타현주에쓰 --out results/loeo/B2-w1/2004 니가타현주에쓰
-실행 B2-w1,시험 지진: 2016 구마모토,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 1 --test-event 2016 구마모토 --out results/loeo/B2-w1/2016 구마모토
-실행 B2-w1,시험 지진: 2018 오사카,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 1 --test-event 2018 오사카 --out results/loeo/B2-w1/2018 오사카
-실행 B2-w1,시험 지진: 2018 훗카이도,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 1 --test-event 2018 훗카이도 --out results/loeo/B2-w1/2018 훗카이도
-실행 B2-w10,시험 지진: 2000 돗토리,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 10 --test-event 2000 돗토리 --out results/loeo/B2-w10/2000 돗토리
-실행 B2-w10,시험 지진: 2004 니가타현주에쓰,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 10 --test-event 2004 니가타현주에쓰 --out results/loeo/B2-w10/2004 니가타현주에쓰
-실행 B2-w10,시험 지진: 2016 구마모토,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 10 --test-event 2016 구마모토 --out results/loeo/B2-w10/2016 구마모토
-실행 B2-w10,시험 지진: 2018 오사카,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 10 --test-event 2018 오사카 --out results/loeo/B2-w10/2018 오사카
-실행 B2-w10,시험 지진: 2018 훗카이도,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 10 --test-event 2018 훗카이도 --out results/loeo/B2-w10/2018 훗카이도
-실행 B0-log,시험 지진: 전체(가린 지진 없음),44,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --fix-b --area-link log --out results/loeo/B0-log
-실행 B2-log,시험 지진: 2000 돗토리,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2000 돗토리 --area-link log --out results/loeo/B2-log/2000 돗토리
-실행 B2-log,시험 지진: 2004 니가타현주에쓰,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2004 니가타현주에쓰 --area-link log --out results/loeo/B2-log/2004 니가타현주에쓰
-실행 B2-log,시험 지진: 2016 구마모토,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2016 구마모토 --area-link log --out results/loeo/B2-log/2016 구마모토
-실행 B2-log,시험 지진: 2018 오사카,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2018 오사카 --area-link log --out results/loeo/B2-log/2018 오사카
-실행 B2-log,시험 지진: 2018 훗카이도,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2018 훗카이도 --area-link log --out results/loeo/B2-log/2018 훗카이도
+실행 B0,시험 지진: 전체(가린 지진 없음),44,train.py --prior-family area --area-link log --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --fix-b --out results/loeo/B0
+실행 B1,시험 지진: 전체(가린 지진 없음),46,train.py --prior-family area --area-link log --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --out results/loeo/B1
+실행 B2,시험 지진: 2000 돗토리,46,train.py --prior-family area --area-link log --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2000 돗토리 --out results/loeo/B2/2000 돗토리
+실행 B2,시험 지진: 2004 니가타현주에쓰,46,train.py --prior-family area --area-link log --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2004 니가타현주에쓰 --out results/loeo/B2/2004 니가타현주에쓰
+실행 B2,시험 지진: 2016 구마모토,46,train.py --prior-family area --area-link log --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2016 구마모토 --out results/loeo/B2/2016 구마모토
+실행 B2,시험 지진: 2018 오사카,46,train.py --prior-family area --area-link log --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2018 오사카 --out results/loeo/B2/2018 오사카
+실행 B2,시험 지진: 2018 훗카이도,46,train.py --prior-family area --area-link log --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2018 훗카이도 --out results/loeo/B2/2018 훗카이도
+실행 B2-w1,시험 지진: 2000 돗토리,46,train.py --prior-family area --area-link log --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 1 --test-event 2000 돗토리 --out results/loeo/B2-w1/2000 돗토리
+실행 B2-w1,시험 지진: 2004 니가타현주에쓰,46,train.py --prior-family area --area-link log --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 1 --test-event 2004 니가타현주에쓰 --out results/loeo/B2-w1/2004 니가타현주에쓰
+실행 B2-w1,시험 지진: 2016 구마모토,46,train.py --prior-family area --area-link log --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 1 --test-event 2016 구마모토 --out results/loeo/B2-w1/2016 구마모토
+실행 B2-w1,시험 지진: 2018 오사카,46,train.py --prior-family area --area-link log --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 1 --test-event 2018 오사카 --out results/loeo/B2-w1/2018 오사카
+실행 B2-w1,시험 지진: 2018 훗카이도,46,train.py --prior-family area --area-link log --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 1 --test-event 2018 훗카이도 --out results/loeo/B2-w1/2018 훗카이도
+실행 B2-w10,시험 지진: 2000 돗토리,46,train.py --prior-family area --area-link log --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 10 --test-event 2000 돗토리 --out results/loeo/B2-w10/2000 돗토리
+실행 B2-w10,시험 지진: 2004 니가타현주에쓰,46,train.py --prior-family area --area-link log --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 10 --test-event 2004 니가타현주에쓰 --out results/loeo/B2-w10/2004 니가타현주에쓰
+실행 B2-w10,시험 지진: 2016 구마모토,46,train.py --prior-family area --area-link log --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 10 --test-event 2016 구마모토 --out results/loeo/B2-w10/2016 구마모토
+실행 B2-w10,시험 지진: 2018 오사카,46,train.py --prior-family area --area-link log --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 10 --test-event 2018 오사카 --out results/loeo/B2-w10/2018 오사카
+실행 B2-w10,시험 지진: 2018 훗카이도,46,train.py --prior-family area --area-link log --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 10 --test-event 2018 훗카이도 --out results/loeo/B2-w10/2018 훗카이도
+실행 B0-logit,시험 지진: 전체(가린 지진 없음),44,train.py --prior-family area --area-link logit --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --fix-b --out results/loeo/B0-logit
+실행 B2-logit,시험 지진: 2000 돗토리,46,train.py --prior-family area --area-link logit --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2000 돗토리 --out results/loeo/B2-logit/2000 돗토리
+실행 B2-logit,시험 지진: 2004 니가타현주에쓰,46,train.py --prior-family area --area-link logit --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2004 니가타현주에쓰 --out results/loeo/B2-logit/2004 니가타현주에쓰
+실행 B2-logit,시험 지진: 2016 구마모토,46,train.py --prior-family area --area-link logit --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2016 구마모토 --out results/loeo/B2-logit/2016 구마모토
+실행 B2-logit,시험 지진: 2018 오사카,46,train.py --prior-family area --area-link logit --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2018 오사카 --out results/loeo/B2-logit/2018 오사카
+실행 B2-logit,시험 지진: 2018 훗카이도,46,train.py --prior-family area --area-link logit --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2018 훗카이도 --out results/loeo/B2-logit/2018 훗카이도

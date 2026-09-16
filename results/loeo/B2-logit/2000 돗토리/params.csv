@@ -1,0 +1,53 @@
+﻿module,group,param,idx,label,transform,raw_value,value
+reg,alpha_c,alpha_channel,0,사망,none,-19.81772885192365,-19.81772885192365
+reg,alpha_c,alpha_channel,1,중상,none,-16.025425374869258,-16.025425374869258
+reg,alpha_c,alpha_channel,2,경상,none,-13.102218939636506,-13.102218939636506
+reg,alpha_c,alpha_channel,3,전파,none,-12.671197805413712,-12.671197805413712
+reg,alpha_c,alpha_channel,4,반파,none,-12.410036638847494,-12.410036638847494
+reg,alpha_c,alpha_channel,5,일부파손,none,-9.472573926054041,-9.472573926054041
+reg,alpha_e,alpha_event_free,0,2004 니가타현주에쓰,fixed(reference),0.0,0.0
+reg,alpha_e,alpha_event_free,1,2007 니가타현주에쓰오키,none,-0.7029579676680415,-0.7029579676680415
+reg,alpha_e,alpha_event_free,2,2008 이와테미야기,none,-2.460274948821952,-2.460274948821952
+reg,alpha_e,alpha_event_free,3,2016 구마모토,none,-1.5000313834828232,-1.5000313834828232
+reg,alpha_e,alpha_event_free,4,2018 오사카,none,-2.861749697646628,-2.861749697646628
+reg,alpha_e,alpha_event_free,5,2018 훗카이도,none,-0.7784488040685311,-0.7784488040685311
+reg,alpha_e,alpha_event_free,6,2021 후쿠시마,none,-2.3570850995208548,-2.3570850995208548
+reg,alpha_e,alpha_event_free,7,2024 노토반도,none,-1.3735783954613976,-1.3735783954613976
+reg,alpha_e,alpha_event_free,8,2000 돗토리,none,-2.7176782021389876,-2.7176782021389876
+reg,beta_c,beta_pgv,0,사망,none,3.2296747841625697,3.2296747841625697
+reg,beta_c,beta_pgv,1,중상,none,2.466213601035621,2.466213601035621
+reg,beta_c,beta_pgv,2,경상,none,2.0274421395755713,2.0274421395755713
+reg,beta_c,beta_pgv,3,전파,none,2.327480376274589,2.327480376274589
+reg,beta_c,beta_pgv,4,반파,none,2.7685677938880824,2.7685677938880824
+reg,beta_c,beta_pgv,5,일부파손,none,2.6962363586014413,2.6962363586014413
+reg,delta_c,delta_wood,0,사망,none,0.14090409310538085,0.14090409310538085
+reg,delta_c,delta_wood,1,중상,none,0.2010989304755962,0.2010989304755962
+reg,delta_c,delta_wood,2,경상,none,-0.042609143596035744,-0.042609143596035744
+reg,delta_c,delta_wood,3,전파,none,0.8271900463227063,0.8271900463227063
+reg,delta_c,delta_wood,4,반파,none,0.505886292362362,0.505886292362362
+reg,delta_c,delta_wood,5,일부파손,none,0.16227437460979144,0.16227437460979144
+reg,gamma_LS,_gamma_ls_unconstrained,0,사망,softplus,-0.6038508808645788,0.43612511085411054
+reg,gamma_LS,_gamma_ls_unconstrained,1,중상,softplus,-0.25332927168011005,0.5744831503947401
+reg,gamma_LS,_gamma_ls_unconstrained,2,경상,softplus,-0.22096949148257994,0.5887534972860334
+reg,gamma_LS,_gamma_ls_unconstrained,3,전파,softplus,-1.5468705610207214,0.1930250950931563
+reg,gamma_LS,_gamma_ls_unconstrained,4,반파,softplus,-1.0343142486448602,0.3041483029842461
+reg,gamma_LS,_gamma_ls_unconstrained,5,일부파손,softplus,-0.5787738075681469,0.4450609629345641
+reg,gamma_LQ,_gamma_lq_unconstrained,0,사망,softplus,-3.986822244954694,0.01838848589385544
+reg,gamma_LQ,_gamma_lq_unconstrained,1,중상,softplus,-4.234033159733193,0.014389785273748736
+reg,gamma_LQ,_gamma_lq_unconstrained,2,경상,softplus,-2.198368096975051,0.10524622251967478
+reg,gamma_LQ,_gamma_lq_unconstrained,3,전파,softplus,-2.7738565077698976,0.060550090672614146
+reg,gamma_LQ,_gamma_lq_unconstrained,4,반파,softplus,-2.0938805757237167,0.11618895566261021
+reg,gamma_LQ,_gamma_lq_unconstrained,5,일부파손,softplus,-1.4699948331109214,0.20695455231398852
+lik,phi_c,_phi_unconstrained,0,사망,softplus,-0.6761851969082073,0.411151130304511
+lik,phi_c,_phi_unconstrained,1,중상,softplus,-0.41896769424729363,0.505446447849999
+lik,phi_c,_phi_unconstrained,2,경상,softplus,-0.4905429480572556,0.4776579228530292
+lik,phi_c,_phi_unconstrained,3,전파,softplus,-1.8505560600381552,0.14595987571573787
+lik,phi_c,_phi_unconstrained,4,반파,softplus,-1.5134531640179623,0.1989725359000403
+lik,phi_c,_phi_unconstrained,5,일부파손,softplus,-0.605573870379471,0.4355164366779638
+pri,a,a,0,LS,fixed(mode=area),1.0,1.0
+pri,a,a,1,LQ,fixed(mode=area),1.0,1.0
+pri,b,_b_raw,0,LS,"bounded[-2.0,4.0]",-0.6978645272903904,-0.006284842688673908
+pri,b,b,1,LQ,fixed(mode=area),0.0,0.0
+pri,c,c,0,LS,fixed(mode=area),1.0,1.0
+pri,c,c,1,LQ,fixed(mode=area),1.0,1.0
+pri,kappa,kappa,0,LS,none,-0.027088316756119838,-0.027088316756119838

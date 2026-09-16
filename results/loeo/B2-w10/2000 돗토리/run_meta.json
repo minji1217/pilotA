@@ -1,18 +1,18 @@
 {
-  "argv": "train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 10 --test-event 2000 돗토리 --out results/loeo/B2-w10/2000 돗토리",
+  "argv": "train.py --prior-family area --area-link log --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 10 --test-event 2000 돗토리 --out results/loeo/B2-w10/2000 돗토리",
   "prior_family": "area",
   "prior_mode": "free",
-  "area_link": "logit",
+  "area_link": "log",
   "fix_b": false,
   "mtn_prior": true,
   "omega": 10.0,
   "test_event": "2000 돗토리",
   "n_bce_rows": 101,
   "n_params": 46,
-  "kappa": -0.02179010046258756,
-  "b_ls": 0.09071210416051301,
+  "kappa": -0.02035045508275626,
+  "b_ls": 0.09440852573877478,
   "a_ls": "",
-  "loss_base_final": 6381.055618264751,
-  "bce_sum_final": 29.513312434059063,
-  "loss_total_final": 6676.188742605341
+  "loss_base_final": 6380.994467447395,
+  "bce_sum_final": 29.51199086715882,
+  "loss_total_final": 6676.114376118983
 }

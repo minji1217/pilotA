@@ -1,18 +1,18 @@
 {
-  "argv": "train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 1 --test-event 2018 오사카 --out results/loeo/B2-w1/2018 오사카",
+  "argv": "train.py --prior-family area --area-link log --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 1 --test-event 2018 오사카 --out results/loeo/B2-w1/2018 오사카",
   "prior_family": "area",
   "prior_mode": "free",
-  "area_link": "logit",
+  "area_link": "log",
   "fix_b": false,
   "mtn_prior": true,
   "omega": 1.0,
   "test_event": "2018 오사카",
   "n_bce_rows": 118,
   "n_params": 46,
-  "kappa": -0.39769329049700064,
-  "b_ls": -1.0461240933795404,
+  "kappa": -0.3935621470642619,
+  "b_ls": -1.0393231848558866,
   "a_ls": "",
-  "loss_base_final": 6368.365160201551,
-  "bce_sum_final": 38.76060783484233,
-  "loss_total_final": 6407.125768036393
+  "loss_base_final": 6368.350541633165,
+  "bce_sum_final": 38.75392170288281,
+  "loss_total_final": 6407.104463336048
 }

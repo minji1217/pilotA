@@ -94,7 +94,7 @@ def build_bce_targets(eval_gt: EvalGroundTruthBatch, *, test_event=None):
 
 
 def build_prior(*, prior_family="base", prior_mode="free", b_bound=2.0,
-                b_min=None, b_max=None, mtn_prior=False, fix_b=False, area_link="logit"):
+                b_min=None, b_max=None, mtn_prior=False, fix_b=False, area_link="log"):
     """지시서 §2-1의 A 계열(base) / B 계열(area) prior를 만든다."""
     if prior_family == "area":
         return AreaPrior(
@@ -108,7 +108,7 @@ def build_prior(*, prior_family="base", prior_mode="free", b_bound=2.0,
 
 def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_bound=2.0,
           b_min=None,b_max=None,
-          prior_family="base",mtn_prior=False,fix_b=False,area_link="logit",
+          prior_family="base",mtn_prior=False,fix_b=False,area_link="log",
           ls_bce_weight=0.0,bce_idx=None,bce_y=None):
     """
     lam_gamma  : gamma에 거는 L2 정규화 계수. loss에 lam_gamma * sum(gamma^2)를 더한다.
@@ -124,7 +124,7 @@ def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_
     prior_family  : "base"(A 계열, 기존 Prior) / "area"(B 계열, AreaPrior)
     mtn_prior     : True면 z_LS에 kappa * z_mtn을 더한다. kappa도 같은 optimizer에 들어간다.
     fix_b         : prior_family="area"에서 b_LS를 0으로 고정한다(B0).
-    area_link     : "logit"(지시서 §2-1 B) / "log"(기존 면적 항 브랜치)
+    area_link     : "log"(주 조건) / "logit"(지시서 §2-1 B 표기, 민감도)
     ls_bce_weight : 지시서 §2-3의 omega. 0이면 BCE 항이 loss에 전혀 들어가지 않는다.
     bce_idx/bce_y : BCE 대상 행의 batch 내 행 index [n]와 산사태 정답 0/1 [n].
                     시험 지진의 행은 호출하는 쪽에서 미리 빼고 넘긴다.
@@ -236,8 +236,8 @@ if __name__ == "__main__":
     # ---- 후속실험 3(LOEO) 옵션. 전부 기본값이면 위의 기존 동작과 완전히 같다. ----
     ap.add_argument("--prior-family", default="base", choices=["base", "area"],
                     help="base=기존 prior(A 계열) / area=면적 항 prior(B 계열, 지시서 §2-1 B)")
-    ap.add_argument("--area-link", default="logit", choices=["logit", "log"],
-                    help="prior-family=area의 링크. logit=지시서 §2-1 B / log=기존 면적 항 브랜치")
+    ap.add_argument("--area-link", default="log", choices=["log", "logit"],
+                    help="prior-family=area의 링크. log=주 조건(기본) / logit=지시서 §2-1 B 표기, 민감도")
     ap.add_argument("--fix-b", action="store_true",
                     help="prior-family=area에서 b_LS를 0으로 고정한다(B0)")
     ap.add_argument("--mtn-prior", action="store_true",

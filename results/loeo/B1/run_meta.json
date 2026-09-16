@@ -1,18 +1,18 @@
 {
-  "argv": "train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --out results/loeo/B1",
+  "argv": "train.py --prior-family area --area-link log --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --out results/loeo/B1",
   "prior_family": "area",
   "prior_mode": "free",
-  "area_link": "logit",
+  "area_link": "log",
   "fix_b": false,
   "mtn_prior": true,
   "omega": 0.0,
   "test_event": "",
   "n_bce_rows": 125,
   "n_params": 46,
-  "kappa": -0.8134637012560108,
-  "b_ls": -1.975435257593479,
+  "kappa": -0.8095063158863619,
+  "b_ls": -1.9753854356671006,
   "a_ls": "",
-  "loss_base_final": 6360.159295585477,
+  "loss_base_final": 6360.114459679875,
   "bce_sum_final": 0.0,
-  "loss_total_final": 6360.159295585477
+  "loss_total_final": 6360.114459679875
 }

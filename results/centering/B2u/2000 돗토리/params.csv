@@ -1,0 +1,53 @@
+﻿module,group,param,idx,label,transform,raw_value,value
+reg,alpha_c,alpha_channel,0,사망,none,-19.81847509024295,-19.81847509024295
+reg,alpha_c,alpha_channel,1,중상,none,-16.026411329563096,-16.026411329563096
+reg,alpha_c,alpha_channel,2,경상,none,-13.104043950196322,-13.104043950196322
+reg,alpha_c,alpha_channel,3,전파,none,-12.66665548374828,-12.66665548374828
+reg,alpha_c,alpha_channel,4,반파,none,-12.411850637338057,-12.411850637338057
+reg,alpha_c,alpha_channel,5,일부파손,none,-9.4745890886568,-9.4745890886568
+reg,alpha_e,alpha_event_free,0,2004 니가타현주에쓰,fixed(reference),0.0,0.0
+reg,alpha_e,alpha_event_free,1,2007 니가타현주에쓰오키,none,-0.7030376280975785,-0.7030376280975785
+reg,alpha_e,alpha_event_free,2,2008 이와테미야기,none,-2.4606739237417377,-2.4606739237417377
+reg,alpha_e,alpha_event_free,3,2016 구마모토,none,-1.499638487113141,-1.499638487113141
+reg,alpha_e,alpha_event_free,4,2018 오사카,none,-2.8606771675908043,-2.8606771675908043
+reg,alpha_e,alpha_event_free,5,2018 훗카이도,none,-0.7784716689913181,-0.7784716689913181
+reg,alpha_e,alpha_event_free,6,2021 후쿠시마,none,-2.357063657348092,-2.357063657348092
+reg,alpha_e,alpha_event_free,7,2024 노토반도,none,-1.3737897393812504,-1.3737897393812504
+reg,alpha_e,alpha_event_free,8,2000 돗토리,none,-2.7166440808013186,-2.7166440808013186
+reg,beta_c,beta_pgv,0,사망,none,3.2296258924748646,3.2296258924748646
+reg,beta_c,beta_pgv,1,중상,none,2.466180180013349,2.466180180013349
+reg,beta_c,beta_pgv,2,경상,none,2.026973782427947,2.026973782427947
+reg,beta_c,beta_pgv,3,전파,none,2.3250408716599202,2.3250408716599202
+reg,beta_c,beta_pgv,4,반파,none,2.768102799451816,2.768102799451816
+reg,beta_c,beta_pgv,5,일부파손,none,2.6965245185166196,2.6965245185166196
+reg,delta_c,delta_wood,0,사망,none,0.14114634251965605,0.14114634251965605
+reg,delta_c,delta_wood,1,중상,none,0.20133914757313723,0.20133914757313723
+reg,delta_c,delta_wood,2,경상,none,-0.04231562467129232,-0.04231562467129232
+reg,delta_c,delta_wood,3,전파,none,0.8278000751019764,0.8278000751019764
+reg,delta_c,delta_wood,4,반파,none,0.5061415482691773,0.5061415482691773
+reg,delta_c,delta_wood,5,일부파손,none,0.16248952598882774,0.16248952598882774
+reg,gamma_LS,_gamma_ls_unconstrained,0,사망,softplus,-0.6044135768604124,0.43592625472174706
+reg,gamma_LS,_gamma_ls_unconstrained,1,중상,softplus,-0.2533007926194141,0.5744955959642822
+reg,gamma_LS,_gamma_ls_unconstrained,2,경상,softplus,-0.22115362956185167,0.5886715634685733
+reg,gamma_LS,_gamma_ls_unconstrained,3,전파,softplus,-1.529699437969043,0.19606070718306584
+reg,gamma_LS,_gamma_ls_unconstrained,4,반파,softplus,-1.0296006238249589,0.30538659520547723
+reg,gamma_LS,_gamma_ls_unconstrained,5,일부파손,softplus,-0.5795279505695403,0.44479012906577065
+reg,gamma_LQ,_gamma_lq_unconstrained,0,사망,softplus,-3.925596687130222,0.019538239904060808
+reg,gamma_LQ,_gamma_lq_unconstrained,1,중상,softplus,-4.157048978565672,0.015532429026265027
+reg,gamma_LQ,_gamma_lq_unconstrained,2,경상,softplus,-2.158585621023456,0.10929229097327701
+reg,gamma_LQ,_gamma_lq_unconstrained,3,전파,softplus,-2.7538874181415154,0.06173443331815419
+reg,gamma_LQ,_gamma_lq_unconstrained,4,반파,softplus,-2.0712222309175683,0.11869963567608305
+reg,gamma_LQ,_gamma_lq_unconstrained,5,일부파손,softplus,-1.459640765156136,0.20889834205990027
+lik,phi_c,_phi_unconstrained,0,사망,softplus,-0.6762342469022421,0.4111345951700245
+lik,phi_c,_phi_unconstrained,1,중상,softplus,-0.41893757452267694,0.5054583983749045
+lik,phi_c,_phi_unconstrained,2,경상,softplus,-0.4904053961069088,0.47771016259012455
+lik,phi_c,_phi_unconstrained,3,전파,softplus,-1.8510832798959318,0.14588829154956
+lik,phi_c,_phi_unconstrained,4,반파,softplus,-1.5131456227055406,0.19902803183389256
+lik,phi_c,_phi_unconstrained,5,일부파손,softplus,-0.6053972865320872,0.43557878661302496
+pri,a,a,0,LS,fixed(mode=area),1.0,1.0
+pri,a,a,1,LQ,fixed(mode=area),1.0,1.0
+pri,b,_b_raw,0,LS,"bounded[-12.0,20.0]",-0.5112499639461019,-0.0031823825014871687
+pri,b,b,1,LQ,fixed(mode=area),0.0,0.0
+pri,c,c,0,LS,fixed(mode=area),1.0,1.0
+pri,c,c,1,LQ,fixed(mode=area),1.0,1.0
+pri,kappa,kappa,0,LS,none,-0.02587805052871595,-0.02587805052871595

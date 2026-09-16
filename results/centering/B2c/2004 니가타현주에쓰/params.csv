@@ -1,0 +1,53 @@
+﻿module,group,param,idx,label,transform,raw_value,value
+reg,alpha_c,alpha_channel,0,사망,none,-19.789092917537058,-19.789092917537058
+reg,alpha_c,alpha_channel,1,중상,none,-16.000860033266633,-16.000860033266633
+reg,alpha_c,alpha_channel,2,경상,none,-13.087253914267025,-13.087253914267025
+reg,alpha_c,alpha_channel,3,전파,none,-12.638552067242077,-12.638552067242077
+reg,alpha_c,alpha_channel,4,반파,none,-12.378676599045656,-12.378676599045656
+reg,alpha_c,alpha_channel,5,일부파손,none,-9.436647671249265,-9.436647671249265
+reg,alpha_e,alpha_event_free,0,2004 니가타현주에쓰,fixed(reference),0.0,0.0
+reg,alpha_e,alpha_event_free,1,2007 니가타현주에쓰오키,none,-0.7186725730784348,-0.7186725730784348
+reg,alpha_e,alpha_event_free,2,2008 이와테미야기,none,-2.4901069542407597,-2.4901069542407597
+reg,alpha_e,alpha_event_free,3,2016 구마모토,none,-1.5059135303666282,-1.5059135303666282
+reg,alpha_e,alpha_event_free,4,2018 오사카,none,-2.856520646758671,-2.856520646758671
+reg,alpha_e,alpha_event_free,5,2018 훗카이도,none,-0.7947412684316785,-0.7947412684316785
+reg,alpha_e,alpha_event_free,6,2021 후쿠시마,none,-2.369306742877705,-2.369306742877705
+reg,alpha_e,alpha_event_free,7,2024 노토반도,none,-1.390595788962816,-1.390595788962816
+reg,alpha_e,alpha_event_free,8,2000 돗토리,none,-2.7169776294193517,-2.7169776294193517
+reg,beta_c,beta_pgv,0,사망,none,3.2185786548823723,3.2185786548823723
+reg,beta_c,beta_pgv,1,중상,none,2.4521959814871988,2.4521959814871988
+reg,beta_c,beta_pgv,2,경상,none,2.013260753819328,2.013260753819328
+reg,beta_c,beta_pgv,3,전파,none,2.309551818768477,2.309551818768477
+reg,beta_c,beta_pgv,4,반파,none,2.7404453184902526,2.7404453184902526
+reg,beta_c,beta_pgv,5,일부파손,none,2.6816301588465645,2.6816301588465645
+reg,delta_c,delta_wood,0,사망,none,0.14456963171792478,0.14456963171792478
+reg,delta_c,delta_wood,1,중상,none,0.20611481546102403,0.20611481546102403
+reg,delta_c,delta_wood,2,경상,none,-0.04004390488230819,-0.04004390488230819
+reg,delta_c,delta_wood,3,전파,none,0.8296483861480577,0.8296483861480577
+reg,delta_c,delta_wood,4,반파,none,0.5094680237553507,0.5094680237553507
+reg,delta_c,delta_wood,5,일부파손,none,0.1648661279157695,0.1648661279157695
+reg,gamma_LS,_gamma_ls_unconstrained,0,사망,softplus,-0.5246018341045598,0.4648597650031901
+reg,gamma_LS,_gamma_ls_unconstrained,1,중상,softplus,-0.15350674259227148,0.6193364617330341
+reg,gamma_LS,_gamma_ls_unconstrained,2,경상,softplus,-0.09238569138380438,0.6480208451626204
+reg,gamma_LS,_gamma_ls_unconstrained,3,전파,softplus,-1.3266469469716844,0.2353610575080434
+reg,gamma_LS,_gamma_ls_unconstrained,4,반파,softplus,-0.7642005267617357,0.38233710706998075
+reg,gamma_LS,_gamma_ls_unconstrained,5,일부파손,softplus,-0.480357147117848,0.48153836921052096
+reg,gamma_LQ,_gamma_lq_unconstrained,0,사망,softplus,-3.9004482719934113,0.020030875360598343
+reg,gamma_LQ,_gamma_lq_unconstrained,1,중상,softplus,-4.133997508481913,0.01589176996085794
+reg,gamma_LQ,_gamma_lq_unconstrained,2,경상,softplus,-2.1964848219310187,0.10543451582891744
+reg,gamma_LQ,_gamma_lq_unconstrained,3,전파,softplus,-2.736791301907991,0.06276620125397911
+reg,gamma_LQ,_gamma_lq_unconstrained,4,반파,softplus,-2.086694422826825,0.11697975283575811
+reg,gamma_LQ,_gamma_lq_unconstrained,5,일부파손,softplus,-1.4915375146811785,0.20296240133277108
+lik,phi_c,_phi_unconstrained,0,사망,softplus,-0.6691647671280107,0.41352332142075793
+lik,phi_c,_phi_unconstrained,1,중상,softplus,-0.3965390717429507,0.5144056048685188
+lik,phi_c,_phi_unconstrained,2,경상,softplus,-0.47143290286981454,0.4849583368846704
+lik,phi_c,_phi_unconstrained,3,전파,softplus,-1.8476258496396674,0.14635832483276334
+lik,phi_c,_phi_unconstrained,4,반파,softplus,-1.5042170575784604,0.20064530403977893
+lik,phi_c,_phi_unconstrained,5,일부파손,softplus,-0.5975724648804372,0.43834880651008323
+pri,a,a,0,LS,fixed(mode=area),1.0,1.0
+pri,a,a,1,LQ,fixed(mode=area),1.0,1.0
+pri,b,_b_raw,0,LS,"bounded[-12.0,20.0]",0.4755554269371767,7.734329783964661
+pri,b,b,1,LQ,fixed(mode=area),0.0,0.0
+pri,c,c,0,LS,fixed(mode=area),1.0,1.0
+pri,c,c,1,LQ,fixed(mode=area),1.0,1.0
+pri,kappa,kappa,0,LS,none,-0.19003870711518103,-0.19003870711518103

@@ -1,0 +1,23 @@
+{
+  "argv": "train.py --prior-family area --area-link log --lam-gamma 10 --seed 0 --epochs 3000 --b-min -12 --b-max 20 --b-lq-min -12 --b-lq-max 20 --mtn-prior --ls-bce-weight 4.35 --test-event 2004 니가타현주에쓰 --out results/centering/B2u/2004 니가타현주에쓰",
+  "prior_family": "area",
+  "prior_mode": "free",
+  "area_link": "log",
+  "fix_b": false,
+  "mtn_prior": true,
+  "omega": 4.35,
+  "test_event": "2004 니가타현주에쓰",
+  "n_bce_rows": 115,
+  "n_params": 46,
+  "kappa": -0.19005400355147548,
+  "b_ls": -0.3087936235517663,
+  "b_lq": 0.0,
+  "free_b_lq": false,
+  "center_logk": false,
+  "k_off_ls": 0.0,
+  "k_off_lq": 0.0,
+  "a_ls": "",
+  "loss_base_final": 6377.172983496659,
+  "bce_sum_final": 35.26967279135823,
+  "loss_total_final": 6530.596060139067
+}

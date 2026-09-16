@@ -94,13 +94,17 @@ def build_bce_targets(eval_gt: EvalGroundTruthBatch, *, test_event=None):
 
 
 def build_prior(*, prior_family="base", prior_mode="free", b_bound=2.0,
-                b_min=None, b_max=None, mtn_prior=False, fix_b=False, area_link="log"):
+                b_min=None, b_max=None, mtn_prior=False, fix_b=False, area_link="log",
+                free_b_lq=False, b_lq_min=-10.0, b_lq_max=4.0,
+                center_logk=False, log_k_mean=(0.0, 0.0)):
     """지시서 §2-1의 A 계열(base) / B 계열(area) prior를 만든다."""
     if prior_family == "area":
         return AreaPrior(
             b_min=-2.0 if b_min is None else b_min,
             b_max=4.0 if b_max is None else b_max,
             fix_b=fix_b, mtn_prior=mtn_prior, link=area_link,
+            free_b_lq=free_b_lq, b_lq_min=b_lq_min, b_lq_max=b_lq_max,
+            center_logk=center_logk, log_k_mean=log_k_mean,
         )
     return Prior(mode=prior_mode, b_bound=b_bound, b_min=b_min, b_max=b_max,
                  mtn_prior=mtn_prior)
@@ -109,6 +113,7 @@ def build_prior(*, prior_family="base", prior_mode="free", b_bound=2.0,
 def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_bound=2.0,
           b_min=None,b_max=None,
           prior_family="base",mtn_prior=False,fix_b=False,area_link="log",
+          free_b_lq=False,b_lq_min=-10.0,b_lq_max=4.0,center_logk=False,
           ls_bce_weight=0.0,bce_idx=None,bce_y=None):
     """
     lam_gamma  : gamma에 거는 L2 정규화 계수. loss에 lam_gamma * sum(gamma^2)를 더한다.
@@ -125,6 +130,10 @@ def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_
     mtn_prior     : True면 z_LS에 kappa * z_mtn을 더한다. kappa도 같은 optimizer에 들어간다.
     fix_b         : prior_family="area"에서 b_LS를 0으로 고정한다(B0).
     area_link     : "log"(주 조건) / "logit"(지시서 §2-1 B 표기, 민감도)
+    free_b_lq     : 사후 탐색(C 계열). b_LQ 고정을 풀어 [b_lq_min, b_lq_max]에서 학습한다.
+                    기본 False면 지시서 §2-1 B대로 b_LQ = 0 고정이다.
+    center_logk   : log k에서 학습 418행 평균을 뺀다. b를 학습하는 채널에만 적용된다.
+                    b를 고정한 채널에서 빼면 유도식 log lambda가 깨지므로 건드리지 않는다.
     ls_bce_weight : 지시서 §2-3의 omega. 0이면 BCE 항이 loss에 전혀 들어가지 않는다.
     bce_idx/bce_y : BCE 대상 행의 batch 내 행 index [n]와 산사태 정답 0/1 [n].
                     시험 지진의 행은 호출하는 쪽에서 미리 빼고 넘긴다.
@@ -138,7 +147,9 @@ def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_
     reg=DamageRegression()
     pri=build_prior(prior_family=prior_family,prior_mode=prior_mode,b_bound=b_bound,
                     b_min=b_min,b_max=b_max,mtn_prior=mtn_prior,fix_b=fix_b,
-                    area_link=area_link)
+                    area_link=area_link,free_b_lq=free_b_lq,
+                    b_lq_min=b_lq_min,b_lq_max=b_lq_max,center_logk=center_logk,
+                    log_k_mean=(float(batch.log_k_ls.mean()), float(batch.log_k_lq.mean())))
 
     use_bce = ls_bce_weight > 0 and bce_idx is not None and bce_idx.numel() > 0
     if use_bce:
@@ -238,6 +249,12 @@ if __name__ == "__main__":
                     help="base=기존 prior(A 계열) / area=면적 항 prior(B 계열, 지시서 §2-1 B)")
     ap.add_argument("--area-link", default="log", choices=["log", "logit"],
                     help="prior-family=area의 링크. log=주 조건(기본) / logit=지시서 §2-1 B 표기, 민감도")
+    ap.add_argument("--center-logk", action="store_true",
+                    help="log k에서 학습 418행 평균을 뺀다. b를 학습하는 채널에만 적용된다")
+    ap.add_argument("--free-b-lq", action="store_true",
+                    help="사후 탐색(C 계열). b_LQ 고정을 풀어 학습한다. 기본은 0 고정")
+    ap.add_argument("--b-lq-min", type=float, default=-10.0, help="--free-b-lq일 때 b_LQ 하한")
+    ap.add_argument("--b-lq-max", type=float, default=4.0, help="--free-b-lq일 때 b_LQ 상한")
     ap.add_argument("--fix-b", action="store_true",
                     help="prior-family=area에서 b_LS를 0으로 고정한다(B0)")
     ap.add_argument("--mtn-prior", action="store_true",
@@ -284,7 +301,8 @@ if __name__ == "__main__":
         lam_gamma=args.lam_gamma, prior_mode=args.prior_mode, b_bound=args.b_bound,
         b_min=args.b_min, b_max=args.b_max,
         prior_family=args.prior_family, mtn_prior=args.mtn_prior, fix_b=args.fix_b,
-        area_link=args.area_link,
+        area_link=args.area_link, free_b_lq=args.free_b_lq, center_logk=args.center_logk,
+        b_lq_min=args.b_lq_min, b_lq_max=args.b_lq_max,
         ls_bce_weight=args.ls_bce_weight, bce_idx=bce_idx, bce_y=bce_y,
     )
     save_loss_history(hist, dir_=out_dir, tag=args.tag)
@@ -338,6 +356,11 @@ if __name__ == "__main__":
         "n_params": sum(p.numel() for m in (reg, like, pri) for p in m.parameters()),
         "kappa": float(pri.kappa) if args.mtn_prior else "",
         "b_ls": float(pri.b_value if args.prior_family == "area" else pri.b_value[0]),
+        "b_lq": float(pri.b_lq_value) if args.prior_family == "area" else "",
+        "free_b_lq": bool(args.free_b_lq),
+        "center_logk": bool(args.center_logk),
+        "k_off_ls": float(pri.k_off_ls) if args.prior_family == "area" else "",
+        "k_off_lq": float(pri.k_off_lq) if args.prior_family == "area" else "",
         "a_ls": "" if args.prior_family == "area" else float(pri.a_value[0]),
         "loss_base_final": float(last["loss_base"]),
         "bce_sum_final": float(last["bce_sum"]),

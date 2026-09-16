@@ -1,0 +1,23 @@
+{
+  "argv": "train.py --prior-family area --area-link log --lam-gamma 10 --seed 0 --epochs 3000 --b-min -12 --b-max 20 --b-lq-min -12 --b-lq-max 20 --center-logk --mtn-prior --free-b-lq --ls-bce-weight 4.35 --test-event 2016 구마모토 --out results/centering/C2c/2016 구마모토",
+  "prior_family": "area",
+  "prior_mode": "free",
+  "area_link": "log",
+  "fix_b": false,
+  "mtn_prior": true,
+  "omega": 4.35,
+  "test_event": "2016 구마모토",
+  "n_bce_rows": 96,
+  "n_params": 47,
+  "kappa": -0.3862675138247128,
+  "b_ls": 7.530462161722415,
+  "b_lq": 2.5679893705848063,
+  "free_b_lq": true,
+  "center_logk": true,
+  "k_off_ls": 8.042167882518715,
+  "k_off_lq": 6.655873521398825,
+  "a_ls": "",
+  "loss_base_final": 6368.973207401414,
+  "bce_sum_final": 30.743893095868135,
+  "loss_total_final": 6502.70914236844
+}

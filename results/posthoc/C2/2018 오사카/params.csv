@@ -1,0 +1,53 @@
+﻿module,group,param,idx,label,transform,raw_value,value
+reg,alpha_c,alpha_channel,0,사망,none,-19.876018364164164,-19.876018364164164
+reg,alpha_c,alpha_channel,1,중상,none,-15.943732409546973,-15.943732409546973
+reg,alpha_c,alpha_channel,2,경상,none,-12.942634375180248,-12.942634375180248
+reg,alpha_c,alpha_channel,3,전파,none,-13.04375806414012,-13.04375806414012
+reg,alpha_c,alpha_channel,4,반파,none,-12.756336525148583,-12.756336525148583
+reg,alpha_c,alpha_channel,5,일부파손,none,-9.485097126977987,-9.485097126977987
+reg,alpha_e,alpha_event_free,0,2004 니가타현주에쓰,fixed(reference),0.0,0.0
+reg,alpha_e,alpha_event_free,1,2007 니가타현주에쓰오키,none,-0.8392551141423807,-0.8392551141423807
+reg,alpha_e,alpha_event_free,2,2008 이와테미야기,none,-2.6640335217281614,-2.6640335217281614
+reg,alpha_e,alpha_event_free,3,2016 구마모토,none,-1.4992662035699535,-1.4992662035699535
+reg,alpha_e,alpha_event_free,4,2018 오사카,none,-2.75143300084795,-2.75143300084795
+reg,alpha_e,alpha_event_free,5,2018 훗카이도,none,-0.9173832988305444,-0.9173832988305444
+reg,alpha_e,alpha_event_free,6,2021 후쿠시마,none,-2.3938356796037175,-2.3938356796037175
+reg,alpha_e,alpha_event_free,7,2024 노토반도,none,-1.5573835755494183,-1.5573835755494183
+reg,alpha_e,alpha_event_free,8,2000 돗토리,none,-2.6979241815090855,-2.6979241815090855
+reg,beta_c,beta_pgv,0,사망,none,3.2111888018696235,3.2111888018696235
+reg,beta_c,beta_pgv,1,중상,none,2.404454009628368,2.404454009628368
+reg,beta_c,beta_pgv,2,경상,none,1.9207955181939664,1.9207955181939664
+reg,beta_c,beta_pgv,3,전파,none,2.408114642775682,2.408114642775682
+reg,beta_c,beta_pgv,4,반파,none,2.8219778976032526,2.8219778976032526
+reg,beta_c,beta_pgv,5,일부파손,none,2.713943345071393,2.713943345071393
+reg,delta_c,delta_wood,0,사망,none,0.2103288292306172,0.2103288292306172
+reg,delta_c,delta_wood,1,중상,none,0.28072685662035984,0.28072685662035984
+reg,delta_c,delta_wood,2,경상,none,0.02713599787592809,0.02713599787592809
+reg,delta_c,delta_wood,3,전파,none,0.8543668615629044,0.8543668615629044
+reg,delta_c,delta_wood,4,반파,none,0.548979863048048,0.548979863048048
+reg,delta_c,delta_wood,5,일부파손,none,0.2160708535787825,0.2160708535787825
+reg,gamma_LS,_gamma_ls_unconstrained,0,사망,softplus,-0.4890267713168404,0.4782339854965463
+reg,gamma_LS,_gamma_ls_unconstrained,1,중상,softplus,-0.14726719384176504,0.6222220907170286
+reg,gamma_LS,_gamma_ls_unconstrained,2,경상,softplus,-0.14953006911723316,0.6211744512406581
+reg,gamma_LS,_gamma_ls_unconstrained,3,전파,softplus,-1.2036493386180256,0.26243891968731703
+reg,gamma_LS,_gamma_ls_unconstrained,4,반파,softplus,-0.6547546854780005,0.4184270742827907
+reg,gamma_LS,_gamma_ls_unconstrained,5,일부파손,softplus,-0.7970533134513776,0.3720151430052022
+reg,gamma_LQ,_gamma_lq_unconstrained,0,사망,softplus,-0.6555705291631252,0.4181481967999151
+reg,gamma_LQ,_gamma_lq_unconstrained,1,중상,softplus,-0.6909953500939688,0.40618289953913933
+reg,gamma_LQ,_gamma_lq_unconstrained,2,경상,softplus,0.04921972083205716,0.7180598330285792
+reg,gamma_LQ,_gamma_lq_unconstrained,3,전파,softplus,-0.8993535887073056,0.3413407631755535
+reg,gamma_LQ,_gamma_lq_unconstrained,4,반파,softplus,-0.29793554903455377,0.5552343080143372
+reg,gamma_LQ,_gamma_lq_unconstrained,5,일부파손,softplus,0.012911095920423532,0.6996235654251645
+lik,phi_c,_phi_unconstrained,0,사망,softplus,-0.5666105034784557,0.4494472480744914
+lik,phi_c,_phi_unconstrained,1,중상,softplus,-0.28658486820194257,0.560086165746987
+lik,phi_c,_phi_unconstrained,2,경상,softplus,-0.32642866829814,0.5431935865638694
+lik,phi_c,_phi_unconstrained,3,전파,softplus,-1.7408928102615895,0.16157768618278395
+lik,phi_c,_phi_unconstrained,4,반파,softplus,-1.3980830008475997,0.22079691492345715
+lik,phi_c,_phi_unconstrained,5,일부파손,softplus,-0.5168155324382673,0.467761615960786
+pri,a,a,0,LS,fixed(mode=area),1.0,1.0
+pri,a,a,1,LQ,fixed(mode=area),1.0,1.0
+pri,b,_b_raw,0,LS,"bounded[-2.0,4.0]",-1.1062931342556162,-0.5086243483143309
+pri,b,_b_lq_raw,1,LQ,"bounded[-10.0,4.0]",-0.3167052567350645,-4.099295242986596
+pri,c,c,0,LS,fixed(mode=area),1.0,1.0
+pri,c,c,1,LQ,fixed(mode=area),1.0,1.0
+pri,kappa,kappa,0,LS,none,-0.23674182479247882,-0.23674182479247882

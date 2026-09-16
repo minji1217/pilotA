@@ -1,0 +1,23 @@
+{
+  "argv": "train.py --prior-family area --area-link log --lam-gamma 10 --seed 0 --epochs 3000 --b-min -12 --b-max 20 --b-lq-min -12 --b-lq-max 20 --center-logk --mtn-prior --ls-bce-weight 4.35 --test-event 2018 훗카이도 --out results/centering/B2c/2018 훗카이도",
+  "prior_family": "area",
+  "prior_mode": "free",
+  "area_link": "log",
+  "fix_b": false,
+  "mtn_prior": true,
+  "omega": 4.35,
+  "test_event": "2018 훗카이도",
+  "n_bce_rows": 112,
+  "n_params": 46,
+  "kappa": 0.1581021501979176,
+  "b_ls": 7.983346570361135,
+  "b_lq": 0.0,
+  "free_b_lq": false,
+  "center_logk": true,
+  "k_off_ls": 8.042167882518715,
+  "k_off_lq": 0.0,
+  "a_ls": "",
+  "loss_base_final": 6380.3516891292675,
+  "bce_sum_final": 28.369268980298116,
+  "loss_total_final": 6503.758009193564
+}

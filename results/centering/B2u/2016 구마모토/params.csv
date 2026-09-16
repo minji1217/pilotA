@@ -1,0 +1,53 @@
+﻿module,group,param,idx,label,transform,raw_value,value
+reg,alpha_c,alpha_channel,0,사망,none,-19.79022035854341,-19.79022035854341
+reg,alpha_c,alpha_channel,1,중상,none,-15.972367245263074,-15.972367245263074
+reg,alpha_c,alpha_channel,2,경상,none,-13.068719130388452,-13.068719130388452
+reg,alpha_c,alpha_channel,3,전파,none,-12.735322005831724,-12.735322005831724
+reg,alpha_c,alpha_channel,4,반파,none,-12.512836450745322,-12.512836450745322
+reg,alpha_c,alpha_channel,5,일부파손,none,-9.443418258772967,-9.443418258772967
+reg,alpha_e,alpha_event_free,0,2004 니가타현주에쓰,fixed(reference),0.0,0.0
+reg,alpha_e,alpha_event_free,1,2007 니가타현주에쓰오키,none,-0.7258174569797842,-0.7258174569797842
+reg,alpha_e,alpha_event_free,2,2008 이와테미야기,none,-2.5184340484730523,-2.5184340484730523
+reg,alpha_e,alpha_event_free,3,2016 구마모토,none,-1.5045055186129797,-1.5045055186129797
+reg,alpha_e,alpha_event_free,4,2018 오사카,none,-2.8393851054526156,-2.8393851054526156
+reg,alpha_e,alpha_event_free,5,2018 훗카이도,none,-0.7943250981772184,-0.7943250981772184
+reg,alpha_e,alpha_event_free,6,2021 후쿠시마,none,-2.366694834318083,-2.366694834318083
+reg,alpha_e,alpha_event_free,7,2024 노토반도,none,-1.391657383081695,-1.391657383081695
+reg,alpha_e,alpha_event_free,8,2000 돗토리,none,-2.711588834449902,-2.711588834449902
+reg,beta_c,beta_pgv,0,사망,none,3.215163459929142,3.215163459929142
+reg,beta_c,beta_pgv,1,중상,none,2.4364622296467786,2.4364622296467786
+reg,beta_c,beta_pgv,2,경상,none,1.997024887190452,1.997024887190452
+reg,beta_c,beta_pgv,3,전파,none,2.3248439656341473,2.3248439656341473
+reg,beta_c,beta_pgv,4,반파,none,2.755482512526925,2.755482512526925
+reg,beta_c,beta_pgv,5,일부파손,none,2.6764032541075684,2.6764032541075684
+reg,delta_c,delta_wood,0,사망,none,0.14899142385951353,0.14899142385951353
+reg,delta_c,delta_wood,1,중상,none,0.21347425894116231,0.21347425894116231
+reg,delta_c,delta_wood,2,경상,none,-0.03434815711430077,-0.03434815711430077
+reg,delta_c,delta_wood,3,전파,none,0.8279371044102151,0.8279371044102151
+reg,delta_c,delta_wood,4,반파,none,0.5096487687574619,0.5096487687574619
+reg,delta_c,delta_wood,5,일부파손,none,0.16934549320693137,0.16934549320693137
+reg,gamma_LS,_gamma_ls_unconstrained,0,사망,softplus,-0.46735696146911426,0.4865265940714921
+reg,gamma_LS,_gamma_ls_unconstrained,1,중상,softplus,-0.07008895853786791,0.6587166334067952
+reg,gamma_LS,_gamma_ls_unconstrained,2,경상,softplus,0.027869858998312135,0.7071791980471082
+reg,gamma_LS,_gamma_ls_unconstrained,3,전파,softplus,-1.0912476944929226,0.2895283119758011
+reg,gamma_LS,_gamma_ls_unconstrained,4,반파,softplus,-0.45997963778638623,0.489375097411468
+reg,gamma_LS,_gamma_ls_unconstrained,5,일부파손,softplus,-0.36209352287318075,0.5284006261937688
+reg,gamma_LQ,_gamma_lq_unconstrained,0,사망,softplus,-3.9447865608667403,0.01917041486195126
+reg,gamma_LQ,_gamma_lq_unconstrained,1,중상,softplus,-4.191337642333529,0.015012780258201524
+reg,gamma_LQ,_gamma_lq_unconstrained,2,경상,softplus,-2.2687155881469954,0.0984370684666954
+reg,gamma_LQ,_gamma_lq_unconstrained,3,전파,softplus,-2.765167618463838,0.06106268517090297
+reg,gamma_LQ,_gamma_lq_unconstrained,4,반파,softplus,-2.106173251486353,0.11484789008733098
+reg,gamma_LQ,_gamma_lq_unconstrained,5,일부파손,softplus,-1.5254109537459657,0.1968255658220372
+lik,phi_c,_phi_unconstrained,0,사망,softplus,-0.6578040007793013,0.4173855015799197
+lik,phi_c,_phi_unconstrained,1,중상,softplus,-0.37974374804627176,0.5211936925957066
+lik,phi_c,_phi_unconstrained,2,경상,softplus,-0.4520128571583028,0.492465699972149
+lik,phi_c,_phi_unconstrained,3,전파,softplus,-1.8252544333115484,0.14943382741343578
+lik,phi_c,_phi_unconstrained,4,반파,softplus,-1.4766098512356327,0.2057212392954174
+lik,phi_c,_phi_unconstrained,5,일부파손,softplus,-0.5852991391713205,0.4427218648262744
+pri,a,a,0,LS,fixed(mode=area),1.0,1.0
+pri,a,a,1,LQ,fixed(mode=area),1.0,1.0
+pri,b,_b_raw,0,LS,"bounded[-12.0,20.0]",-0.5858857594280227,-0.5574589459363803
+pri,b,b,1,LQ,fixed(mode=area),0.0,0.0
+pri,c,c,0,LS,fixed(mode=area),1.0,1.0
+pri,c,c,1,LQ,fixed(mode=area),1.0,1.0
+pri,kappa,kappa,0,LS,none,-0.4070030045131759,-0.4070030045131759

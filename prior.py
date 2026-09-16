@@ -143,8 +143,11 @@ class Prior(nn.Module):
 class AreaPrior(nn.Module):
     """후속실험 3의 면적 항 prior. 지시서 §2-1 B 계열이다.
 
-        z_LS = link(pi_LS) + log k_LS + b_LS  (+ kappa * m)
-        z_LQ = link(pi_LQ) + log k_LQ                  (학습 없음)
+        z_LS = link(pi_LS) + (log k_LS - off_LS) + b_LS  (+ kappa * m)
+        z_LQ = link(pi_LQ) + (log k_LQ - off_LQ) + b_LQ        (b_LQ는 기본 0 고정)
+
+    off은 center_logk=True이고 그 채널의 b를 학습할 때만 log k의 학습 418행 평균이고,
+    그 밖에는 0이다. b를 고정한 채널에서 빼면 유도식 log lambda = log(p_bar * k)가 깨진다.
 
     USGS 값 pi는 발생확률이 아니라 격자 한 칸에서 덮이는 면적 비율이다.
     칸끼리 독립이면 시정촌에서 한 곳이라도 날 기대 칸 수가
@@ -170,7 +173,9 @@ class AreaPrior(nn.Module):
     LINKS = ("logit", "log")
 
     def __init__(self, *, b_min: float = -2.0, b_max: float = 4.0,
-                 fix_b: bool = False, mtn_prior: bool = False, link: str = "log"):
+                 fix_b: bool = False, mtn_prior: bool = False, link: str = "log",
+                 free_b_lq: bool = False, b_lq_min: float = -10.0, b_lq_max: float = 4.0,
+                 center_logk: bool = False, log_k_mean=(0.0, 0.0)):
         super().__init__()
 
         if link not in self.LINKS:
@@ -195,12 +200,55 @@ class AreaPrior(nn.Module):
         if self.mtn_prior:
             self.kappa = nn.Parameter(torch.zeros(1, dtype=DTYPE))
 
+        # 사후 탐색(C 계열): b_LQ 고정을 푼다. 기본값은 지시서 §2-1 B대로 0 고정이다.
+        #
+        # log k_LQ의 평균이 6.7쯤이라 b_LQ=0이면 q_LQ가 통째로 밀려 올라가 중앙값이 0.92가 된다.
+        # 실제 LQ 발생률은 229행 중 0.476이라 확률 수준이 크게 어긋난다.
+        # b_LQ는 모든 행에 같은 상수여서 순위(AUC)는 건드리지 않고 수준만 움직인다.
+        # 다만 4상태 가중치가 달라지므로 사후확률과 LS 쪽에는 영향이 갈 수 있다.
+        # 범위는 log k_LQ 평균을 덮을 수 있게 넉넉히 잡는다.
+        self.free_b_lq = bool(free_b_lq)
+        if self.free_b_lq:
+            b_lq_min, b_lq_max = float(b_lq_min), float(b_lq_max)
+            if not b_lq_min < 0.0 < b_lq_max:
+                raise ValueError(
+                    f"b_LQ 범위는 초기값 0을 안쪽에 포함해야 합니다: [{b_lq_min}, {b_lq_max}]"
+                )
+            self.B_LQ_MIN, self.B_LQ_MAX = b_lq_min, b_lq_max
+            init = _inverse_sigmoid((0.0 - b_lq_min) / (b_lq_max - b_lq_min))
+            self._b_lq_raw = nn.Parameter(torch.full((1,), init, dtype=DTYPE))
+        else:
+            self.register_buffer("b_lq", torch.zeros(1, dtype=DTYPE))
+
+        # log k 중심화. b를 "학습하는 쪽"에서만 뺀다.
+        #
+        #   b 학습  -> 빼는 게 낫다. b가 '평균 크기 시정촌에서의 log-odds'라는 뜻을 갖고,
+        #             b와 log k의 상관이 줄어 최적화가 안정된다.
+        #   b 고정  -> 빼면 안 된다. 재매개변수화가 아니라 다른 모형이 된다.
+        #             안 뺀 z = log(p_bar * k) = log lambda 가 유도식 그 자체다.
+        #
+        # 게다가 b에 범위 상자가 걸려 있어 여기서는 순수 재매개변수화도 아니다.
+        # 안 빼면 b가 닿을 수 있는 수준이 log k 평균만큼 통째로 밀려 있다.
+        self.center_logk = bool(center_logk)
+        m_ls, m_lq = float(log_k_mean[0]), float(log_k_mean[1])
+        self.register_buffer("k_off_ls",
+            torch.tensor(m_ls if (self.center_logk and not self.fix_b) else 0.0, dtype=DTYPE))
+        self.register_buffer("k_off_lq",
+            torch.tensor(m_lq if (self.center_logk and self.free_b_lq) else 0.0, dtype=DTYPE))
+
     @property
     def b_value(self) -> Tensor:
-        """실제 식에 들어가는 b_LS 스칼라. b_LQ는 항상 0이다."""
+        """실제 식에 들어가는 b_LS 스칼라."""
         if self.fix_b:
             return self.b_ls
         return self.B_MIN + (self.B_MAX - self.B_MIN) * torch.sigmoid(self._b_raw)
+
+    @property
+    def b_lq_value(self) -> Tensor:
+        """실제 식에 들어가는 b_LQ 스칼라. 기본은 0 고정이다."""
+        if self.free_b_lq:
+            return self.B_LQ_MIN + (self.B_LQ_MAX - self.B_LQ_MIN) * torch.sigmoid(self._b_lq_raw)
+        return self.b_lq
 
     def _link(self, pi):
         if self.link == "logit":
@@ -210,8 +258,8 @@ class AreaPrior(nn.Module):
 
     def z(self, pi_ls, pi_lq, log_k_ls, log_k_lq, z_mtn=None):
         """z_LS, z_LQ [B]."""
-        z_ls = self._link(pi_ls) + log_k_ls + self.b_value
-        z_lq = self._link(pi_lq) + log_k_lq
+        z_ls = self._link(pi_ls) + (log_k_ls - self.k_off_ls) + self.b_value
+        z_lq = self._link(pi_lq) + (log_k_lq - self.k_off_lq) + self.b_lq_value
 
         if self.mtn_prior:
             if z_mtn is None:

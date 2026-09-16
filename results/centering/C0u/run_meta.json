@@ -1,0 +1,23 @@
+{
+  "argv": "train.py --prior-family area --area-link log --lam-gamma 10 --seed 0 --epochs 3000 --b-min -12 --b-max 20 --b-lq-min -12 --b-lq-max 20 --fix-b --free-b-lq --out results/centering/C0u",
+  "prior_family": "area",
+  "prior_mode": "free",
+  "area_link": "log",
+  "fix_b": true,
+  "mtn_prior": false,
+  "omega": 0.0,
+  "test_event": "",
+  "n_bce_rows": 125,
+  "n_params": 45,
+  "kappa": "",
+  "b_ls": 0.0,
+  "b_lq": -4.118551045358825,
+  "free_b_lq": true,
+  "center_logk": false,
+  "k_off_ls": 0.0,
+  "k_off_lq": 0.0,
+  "a_ls": "",
+  "loss_base_final": 6371.719585973559,
+  "bce_sum_final": 0.0,
+  "loss_total_final": 6371.719585973559
+}

@@ -1,0 +1,53 @@
+﻿module,group,param,idx,label,transform,raw_value,value
+reg,alpha_c,alpha_channel,0,사망,none,-19.795780234537986,-19.795780234537986
+reg,alpha_c,alpha_channel,1,중상,none,-16.01860104000132,-16.01860104000132
+reg,alpha_c,alpha_channel,2,경상,none,-13.095720867668254,-13.095720867668254
+reg,alpha_c,alpha_channel,3,전파,none,-12.611164996952354,-12.611164996952354
+reg,alpha_c,alpha_channel,4,반파,none,-12.335600340992855,-12.335600340992855
+reg,alpha_c,alpha_channel,5,일부파손,none,-9.441871398123343,-9.441871398123343
+reg,alpha_e,alpha_event_free,0,2004 니가타현주에쓰,fixed(reference),0.0,0.0
+reg,alpha_e,alpha_event_free,1,2007 니가타현주에쓰오키,none,-0.7085688143537157,-0.7085688143537157
+reg,alpha_e,alpha_event_free,2,2008 이와테미야기,none,-2.4653026040364296,-2.4653026040364296
+reg,alpha_e,alpha_event_free,3,2016 구마모토,none,-1.503958642940057,-1.503958642940057
+reg,alpha_e,alpha_event_free,4,2018 오사카,none,-2.8708608727065177,-2.8708608727065177
+reg,alpha_e,alpha_event_free,5,2018 훗카이도,none,-0.7869366533682276,-0.7869366533682276
+reg,alpha_e,alpha_event_free,6,2021 후쿠시마,none,-2.365416689398044,-2.365416689398044
+reg,alpha_e,alpha_event_free,7,2024 노토반도,none,-1.382331707094866,-1.382331707094866
+reg,alpha_e,alpha_event_free,8,2000 돗토리,none,-2.7183843733635182,-2.7183843733635182
+reg,beta_c,beta_pgv,0,사망,none,3.2253195850797423,3.2253195850797423
+reg,beta_c,beta_pgv,1,중상,none,2.4654744176134264,2.4654744176134264
+reg,beta_c,beta_pgv,2,경상,none,2.026239435984456,2.026239435984456
+reg,beta_c,beta_pgv,3,전파,none,2.3104334182044837,2.3104334182044837
+reg,beta_c,beta_pgv,4,반파,none,2.7470306257688475,2.7470306257688475
+reg,beta_c,beta_pgv,5,일부파손,none,2.6889240669089225,2.6889240669089225
+reg,delta_c,delta_wood,0,사망,none,0.14087030107102227,0.14087030107102227
+reg,delta_c,delta_wood,1,중상,none,0.19984134588288738,0.19984134588288738
+reg,delta_c,delta_wood,2,경상,none,-0.04367225446968773,-0.04367225446968773
+reg,delta_c,delta_wood,3,전파,none,0.8292020959441503,0.8292020959441503
+reg,delta_c,delta_wood,4,반파,none,0.5077608270473535,0.5077608270473535
+reg,delta_c,delta_wood,5,일부파손,none,0.16158470500776284,0.16158470500776284
+reg,gamma_LS,_gamma_ls_unconstrained,0,사망,softplus,-0.6113117684676809,0.43349431769842
+reg,gamma_LS,_gamma_ls_unconstrained,1,중상,softplus,-0.25635959098872935,0.573160017551483
+reg,gamma_LS,_gamma_ls_unconstrained,2,경상,softplus,-0.2252929548260027,0.5868319447693244
+reg,gamma_LS,_gamma_ls_unconstrained,3,전파,softplus,-1.5389690129296159,0.19441664833470707
+reg,gamma_LS,_gamma_ls_unconstrained,4,반파,softplus,-1.0527747390410849,0.2993399365072882
+reg,gamma_LS,_gamma_ls_unconstrained,5,일부파손,softplus,-0.5958101347075424,0.43897461179633085
+reg,gamma_LQ,_gamma_lq_unconstrained,0,사망,softplus,-3.8930536615026248,0.020178054951412987
+reg,gamma_LQ,_gamma_lq_unconstrained,1,중상,softplus,-4.119015896097985,0.01612972239287976
+reg,gamma_LQ,_gamma_lq_unconstrained,2,경상,softplus,-2.1493556348224363,0.11025184982125498
+reg,gamma_LQ,_gamma_lq_unconstrained,3,전파,softplus,-2.7328105429908818,0.06300883181989235
+reg,gamma_LQ,_gamma_lq_unconstrained,4,반파,softplus,-2.0723660194910103,0.11857168157536987
+reg,gamma_LQ,_gamma_lq_unconstrained,5,일부파손,softplus,-1.4653810153449311,0.20781869443770873
+lik,phi_c,_phi_unconstrained,0,사망,softplus,-0.6813042003924481,0.4094283726297626
+lik,phi_c,_phi_unconstrained,1,중상,softplus,-0.4187481694282622,0.5055335531181748
+lik,phi_c,_phi_unconstrained,2,경상,softplus,-0.49060014712803435,0.4776362009948328
+lik,phi_c,_phi_unconstrained,3,전파,softplus,-1.857999739543303,0.14495221289947807
+lik,phi_c,_phi_unconstrained,4,반파,softplus,-1.5190984371693226,0.19795632628917065
+lik,phi_c,_phi_unconstrained,5,일부파손,softplus,-0.6071785556768746,0.4349501652489046
+pri,a,a,0,LS,fixed(mode=area),1.0,1.0
+pri,a,a,1,LQ,fixed(mode=area),1.0,1.0
+pri,b,_b_raw,0,LS,"bounded[-12.0,20.0]",0.5161839616519046,8.040160538837242
+pri,b,b,1,LQ,fixed(mode=area),0.0,0.0
+pri,c,c,0,LS,fixed(mode=area),1.0,1.0
+pri,c,c,1,LQ,fixed(mode=area),1.0,1.0
+pri,kappa,kappa,0,LS,none,-0.02580768304101495,-0.02580768304101495

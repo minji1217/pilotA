@@ -109,6 +109,11 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
             spec += [
                 ("pri", "_b_raw", "b", [0], ["LS"], f"bounded[{pri.B_MIN},{pri.B_MAX}]"),
             ]
+        if pri.free_b_lq:
+            spec += [
+                ("pri", "_b_lq_raw", "b", [1], ["LQ"],
+                 f"bounded[{pri.B_LQ_MIN},{pri.B_LQ_MAX}]"),
+            ]
     # mode == "fixed"이면 a=1, b=0은 학습 파라미터가 아니므로 아래에서 고정행으로 넣는다.
 
     # 후속실험 3의 산지 계수. 범위 제약이 없어 transform=none이고 LS에만 들어간다.
@@ -130,7 +135,12 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
             val = F.softplus(raw)
         elif transform.startswith("bounded"):
             # prior의 a, b는 sigmoid 재파라미터화라 raw와 실제 값이 다르다.
-            val = (pri.a_value if pname == "_a_raw" else pri.b_value).detach()
+            if pname == "_a_raw":
+                val = pri.a_value.detach()
+            elif pname == "_b_lq_raw":
+                val = pri.b_lq_value.detach()
+            else:
+                val = pri.b_value.detach()
         else:
             val = raw
 
@@ -168,8 +178,9 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
                 "module": "pri", "group": "c", "param": "c", "idx": i, "label": lab,
                 "transform": "fixed(mode=area)", "raw_value": 1.0, "value": 1.0,
             })
-        # b_LQ는 항상 0 고정이고, --fix-b이면 b_LS도 0 고정이다.
-        fixed_b = [("LQ", 1)] if not pri.fix_b else [("LS", 0), ("LQ", 1)]
+        # 학습하지 않는 b만 고정행으로 남긴다.
+        fixed_b = ([] if pri.fix_b else []) + ([("LS", 0)] if pri.fix_b else []) \
+                  + ([] if pri.free_b_lq else [("LQ", 1)])
         for lab, i in fixed_b:
             rows.append({
                 "module": "pri", "group": "b", "param": "b", "idx": i, "label": lab,

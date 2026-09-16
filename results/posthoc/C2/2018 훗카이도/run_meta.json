@@ -1,0 +1,20 @@
+{
+  "argv": "train.py --prior-family area --area-link log --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --free-b-lq --ls-bce-weight 4.35 --test-event 2018 훗카이도 --out results/posthoc/C2/2018 훗카이도",
+  "prior_family": "area",
+  "prior_mode": "free",
+  "area_link": "log",
+  "fix_b": false,
+  "mtn_prior": true,
+  "omega": 4.35,
+  "test_event": "2018 훗카이도",
+  "n_bce_rows": 112,
+  "n_params": 47,
+  "kappa": 0.1932154677722793,
+  "b_ls": -0.014858324034890513,
+  "b_lq": -4.1257536976012865,
+  "free_b_lq": true,
+  "a_ls": "",
+  "loss_base_final": 6368.157820101201,
+  "bce_sum_final": 28.338551519524344,
+  "loss_total_final": 6491.4305192111315
+}

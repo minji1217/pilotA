@@ -1,0 +1,20 @@
+{
+  "argv": "train.py --prior-family area --area-link log --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --free-b-lq --ls-bce-weight 4.35 --test-event 2016 구마모토 --out results/posthoc/C2/2016 구마모토",
+  "prior_family": "area",
+  "prior_mode": "free",
+  "area_link": "log",
+  "fix_b": false,
+  "mtn_prior": true,
+  "omega": 4.35,
+  "test_event": "2016 구마모토",
+  "n_bce_rows": 96,
+  "n_params": 47,
+  "kappa": -0.3848638812459833,
+  "b_ls": -0.5123053693754587,
+  "b_lq": -4.097648013464186,
+  "free_b_lq": true,
+  "a_ls": "",
+  "loss_base_final": 6365.5943886719515,
+  "bce_sum_final": 30.745339427431606,
+  "loss_total_final": 6499.336615181279
+}

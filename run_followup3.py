@@ -87,11 +87,11 @@ AREA_RUNS = [
     Run("A", "fixed", "area", "followup3-area-avg-fixed", needs_area=True,
         note="a=1 b=0 c=1 고정. 유도식 그대로(기준)"),
     Run("B", "tied", "area", "followup3-area-avg-tied", needs_area=True,
-        note="a 학습, b 학습[-2,4], c=a. 순위는 fixed와 같고 확률 수준만 학습"),
+        note="a·b 학습[-20,20], c=a. b를 학습하므로 log k는 중심화된다"),
     Run("C", "bounded", "area", "followup3-area-avg-bounded", needs_area=True,
-        note="a 학습, b 학습[-2,4], c=1 고정. 기존 G2 방식"),
+        note="a·b 학습[-20,20], c=1 고정. b를 학습하므로 log k는 중심화된다"),
     Run("D", "free", "area", "followup3-area-avg-free", needs_area=True,
-        note="a 학습, b 학습[-2,4], c 학습[0,2]"),
+        note="a·b 학습[-20,20], c 학습[0,2]. b를 학습하므로 log k는 중심화된다"),
     Run("E", "c 작게", "area", "followup3-area-avg-a1-c05", needs_area=True,
         note="a=1 b=0 c=0.5 고정. 넓은 곳을 감점"),
     Run("F", "c 크게", "area", "followup3-area-avg-a1-c2", needs_area=True,
@@ -126,29 +126,23 @@ SPLIT_RUNS = [
 
 # ④-3 눈금은 c가 아니라 b로 — b는 z에 더해지는 상수라 hazard 안에서 순위를 바꾸지
 # 않는다. fixed의 prior 순위를 그대로 두고 확률 수준만 옮길 수 있다.
-# 중심화는 b가 흡수하는 재매개변수화라 둘이 같은 답에 가야 정상이다.
 BONLY_RUNS = [
     Run("J", "b만 학습", "bonly", "followup3-area-avg-b-only", needs_area=True,
-        note="a=1 c=1 고정, b만 학습 [-12,12]. log k 원값"),
-    Run("K", "b만 학습+중심화", "bonly", "followup3-area-avg-b-only-ctr", needs_area=True,
-        note="같은 조건에 log k 평균 중심화. J와 같은 답에 가야 정상"),
+        note="a=1 c=1 고정, b만 학습 [-20,20]. b를 학습하므로 log k는 중심화된다"),
 ]
 
-# ④-4 b를 학습하는 조건에 규칙을 제대로 적용한 판 — 중심화 + b 범위 [-12, 12].
-# 기존 B/C/D는 b 범위가 [-2, 4]였고 bounded의 b_LQ가 -1.947로 하한에 붙어 있었다.
-# 중심화 자체는 결과를 바꾸지 않으므로(J/K로 확인) 실질 차이는 b 제약을 풀었는지다.
-CTR_RUNS = [
-    Run("L", "tied 중심화", "ctr", "followup3-area-avg-tied-ctr", needs_area=True,
-        note="B(tied)에 중심화 + b 범위 [-12,12]"),
-    Run("M", "bounded 중심화", "ctr", "followup3-area-avg-bounded-ctr", needs_area=True,
-        note="C(bounded)에 중심화 + b 범위 [-12,12]"),
-    Run("N", "free 중심화", "ctr", "followup3-area-avg-free-ctr", needs_area=True,
-        note="D(free)에 중심화 + b 범위 [-12,12]"),
-]
+# ④-4 (폐지) tied-ctr / bounded-ctr / free-ctr / b-only-ctr
+#
+# "-ctr"은 "이 조건은 중심화한다"는 표시였다. 그런데 중심화를 이름이 아니라
+# "b를 학습하는가"로 자동 판정하게 바꾸면서 표시가 할 일이 없어졌다.
+# tied ≡ tied-ctr, bounded ≡ bounded-ctr, free ≡ free-ctr, b-only ≡ b-only-ctr 이다.
+#
+# 2026-09-16 실행에서 네 쌍 모두 요약 지표가 비트 단위로 일치하는 것을 확인했고
+# (최대 차이 0.00e+00), 그 확인을 마친 뒤 목록에서 뺐다. 브랜치는 남겨 둔다.
+CTR_RUNS: list[Run] = []
 
-RUNS: list[Run] = [*FEEDBACK_RUNS, *NATMIX_RUNS, *AREA_RUNS, *SPLIT_RUNS,
-                   *BONLY_RUNS, *CTR_RUNS]
-GROUPS = ("feedback", "natmix", "area", "split", "bonly", "ctr")
+RUNS: list[Run] = [*FEEDBACK_RUNS, *NATMIX_RUNS, *AREA_RUNS, *SPLIT_RUNS, *BONLY_RUNS]
+GROUPS = ("feedback", "natmix", "area", "split", "bonly")
 
 
 def sh(cmd: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess:

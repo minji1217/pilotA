@@ -62,6 +62,19 @@ def to_eval_pred(batch: PilotABatch, p_ls, p_lq, eval_gt: EvalGroundTruthBatch, 
         "prior_lq": batch.pi_lq[idx].detach().numpy(),
     })
 
+    # 모델 자신의 prior 점수. 면적 항 조건이면 z = a·log p̄ + b + c·log k 라서
+    # 원값 prior와 순위가 다르다. 면적 항이 없는 조건은 인자 두 개짜리 z를 쓴다.
+    if pri is not None and hasattr(pri, "z"):
+        with torch.no_grad():
+            if hasattr(batch, "log_k_ls"):
+                z_ls, z_lq = pri.z(batch.pi_ls, batch.pi_lq, batch.log_k_ls, batch.log_k_lq)
+            else:
+                z_ls, z_lq = pri.z(batch.pi_ls, batch.pi_lq)
+        out["zprior_ls"] = z_ls[idx].detach().numpy()
+        out["zprior_lq"] = z_lq[idx].detach().numpy()
+
+    return out
+
     # 모델 자신의 prior 점수. 면적 항 조건이면 z = a·log p̄ + b + c·log k 이고,
     # 원값 prior와 순위가 다르다. 둘을 같이 봐야 "면적 항이 올린 것"과
     # "피해 데이터가 올린 것"을 가를 수 있다.

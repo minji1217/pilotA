@@ -135,6 +135,17 @@ def run_one(batch, eval_gt, gt_df, *, mode, lam, epochs, seed, b_bound=DEFAULT_B
         # 모델 자신의 prior 단독 AUC. 원값 prior와 비교 대상이 다르다.
         "auc_zprior_ls": result.auc_zprior_ls,
         "auc_zprior_lq": result.auc_zprior_lq,
+        "auc_zprior_ls_wavg": result.auc_zprior_ls_wavg,
+        "auc_zprior_lq_wavg": result.auc_zprior_lq_wavg,
+        # 피해 데이터가 prior에 실제로 보탠 양. 음수면 오히려 깎았다는 뜻이다.
+        # 주 지표는 이벤트별 AUC를 행 수로 가중평균한 wavg 쪽이다.
+        "gain_ls": result.auc_ls - result.auc_zprior_ls,
+        "gain_lq": result.auc_lq - result.auc_zprior_lq,
+        "gain_ls_wavg": result.auc_ls_wavg - result.auc_zprior_ls_wavg,
+        "gain_lq_wavg": result.auc_lq_wavg - result.auc_zprior_lq_wavg,
+        # 모델 자신의 prior 단독 AUC. 원값 prior와 비교 대상이 다르다.
+        "auc_zprior_ls": result.auc_zprior_ls,
+        "auc_zprior_lq": result.auc_zprior_lq,
         # 피해 데이터가 prior에 실제로 보탠 양. 음수면 오히려 깎았다는 뜻이다.
         "gain_ls": result.auc_ls - result.auc_zprior_ls,
         "gain_lq": result.auc_lq - result.auc_zprior_lq,
@@ -252,7 +263,8 @@ def main(*, epochs=3000, seed=0, modes=PRIOR_MODES, lams=LAM_GAMMAS,
     print("=" * 60)
     print(f"저장: {out_csv} ({len(df)}행)")
     show = ["prior_mode", "lam_gamma", "mse_ls", "mse_lq",
-            "auc_ls", "auc_zprior_ls", "gain_ls", "auc_lq", "auc_zprior_lq", "gain_lq",
+            "auc_ls_wavg", "auc_zprior_ls_wavg", "gain_ls_wavg",
+            "auc_lq_wavg", "auc_zprior_lq_wavg", "gain_lq_wavg",
             "auc_ls_niigata2004", "sum_gamma2", "frac_middle"]
     print(df[[c for c in show if c in df.columns]].round(4).to_string(index=False))
     return df, tags

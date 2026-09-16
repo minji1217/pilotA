@@ -335,23 +335,24 @@ title(s,"사후 탐색 — b_LQ 고정을 풀면","사전등록 조건표 밖의
 s.addShape(pres.ShapeType.roundRect,{x:0.7,y:1.72,w:11.95,h:0.95,rectRadius:0.09,fill:{color:SAND},line:{color:LINE,width:0.5}});
 s.addText("문제 — log k_LQ의 평균이 6.7쯤이라 q_LQ가 통째로 밀려 올라간다. 중앙값 0.9188인데 실제 LQ 발생률은 229행 중 0.476이다. b_LQ가 0으로 고정돼 수준을 잡을 수단이 없었다.",
   {x:1.0,y:1.92,w:11.35,h:0.6,fontSize:12,color:INK,lineSpacing:16,fontFace:B,isTextBox:true,margin:0});
-const comp=[["LQ 사후 가중 AUC","0.7812","0.8158","+0.0346",true],
-            ["LQ prior 가중 AUC","0.7698","0.7698","변화 없음 (예측대로)",false],
+const comp=[["LQ 사전 가중 AUC","0.7698","0.7698","변화 없음 (예측대로)",false],
+            ["LQ 사후 가중 AUC","0.7812","0.8158","+0.0346",true],
             ["LQ MSE (사후)","0.2497","0.2399","−0.0098",true],
-            ["LQ BCE (prior)","0.8760","0.7257","−0.1503",true],
+            ["LQ BCE (사전)","0.8760","0.7257","−0.1503",true],
             ["q_LQ 중앙값","0.9145","0.1485","실제 발생률 0.476",false],
+            ["LS 사전 가중 AUC","0.8400","0.8400","완전히 동일 (0.00e+00)",false],
             ["LS 사후 가중 AUC","0.8550","0.8529","−0.0021",false]];
 tbl(s,[[hdr("지표"),hdr("B0  (b_LQ = 0 고정)"),hdr("C0  (b_LQ 학습, b_LQ = −4.12)"),hdr("변화")]]
  .concat(comp.map(r=>[r[0],r[1],{text:r[2],options:{bold:true}},
    {text:r[3],options:{color:r[4]?SAGE:MUTED,bold:r[4]}}])),
- {x:0.7,y:2.86,w:7.8,colW:[2.3,2.0,2.3,1.2],rowH:0.375,fontSize:10.5,align:"center"});
-card(s,8.8,2.86,3.85,3.0);
-s.addText("왜 순위는 그대로인가",{x:9.08,y:3.06,w:3.3,h:0.3,fontSize:12.5,bold:true,color:INK,fontFace:H,isTextBox:true,margin:0});
+ {x:0.7,y:2.86,w:8.0,colW:[2.15,1.95,2.25,1.65],rowH:0.355,fontSize:10.5,align:"center"});
+card(s,8.95,2.86,3.7,2.85);
+s.addText("왜 순위는 그대로인가",{x:9.23,y:3.06,w:3.15,h:0.3,fontSize:12.5,bold:true,color:INK,fontFace:H,isTextBox:true,margin:0});
 s.addText("b_LQ는 모든 행에 더해지는 같은 상수다. 상수를 더해도 순위는 바뀌지 않으므로 prior AUC가 0.7698 그대로다.\n\n그런데 4상태 가중치가 제대로 잡히면서 사후 AUC가 올랐다. 확률 수준만 고쳤는데 사후 순위가 좋아진 것이다.",
-  {x:9.08,y:3.46,w:3.3,h:2.2,fontSize:11,color:MUTED,lineSpacing:15,fontFace:B,isTextBox:true,margin:0});
-s.addShape(pres.ShapeType.roundRect,{x:0.7,y:6.08,w:7.8,h:0.85,rectRadius:0.09,fill:{color:DARK},line:{color:DARK,width:0}});
+  {x:9.23,y:3.46,w:3.15,h:2.1,fontSize:11,color:MUTED,lineSpacing:15,fontFace:B,isTextBox:true,margin:0});
+s.addShape(pres.ShapeType.roundRect,{x:0.7,y:6.1,w:8.0,h:0.8,rectRadius:0.09,fill:{color:DARK},line:{color:DARK,width:0}});
 s.addText("짝지은 부트스트랩 3,000회 — C0 − B0 = +0.0342,  95% 구간 [+0.0009, +0.0698],  P(차이 > 0) = 0.978",
-  {x:1.0,y:6.32,w:7.25,h:0.4,fontSize:11.5,bold:true,color:WHITE,fontFace:B,isTextBox:true,margin:0});
+  {x:1.0,y:6.3,w:7.4,h:0.42,fontSize:11,bold:true,color:WHITE,fontFace:B,isTextBox:true,margin:0});
 s.addNotes("결과를 보고 나온 아이디어이므로 판정표에 섞지 않고 별도 파일로 분리했다. 다만 예측이 명확했고 그대로 맞았다.");
 
 /* ─────────────── 12-2. log k 중심화 ─────────────── */
@@ -388,26 +389,28 @@ s=pres.addSlide(); s.background={color:DARK};
 s.addText("결론 — 지금 가장 좋은 구성",{x:0.85,y:0.6,w:11.6,h:0.6,fontSize:32,bold:true,color:WHITE,fontFace:H,isTextBox:true,margin:0});
 s.addText("두 가지를 나란히 제시한다. 사전등록 기준 1위와, 사후 탐색까지 포함한 1위다.",
   {x:0.85,y:1.26,w:11.6,h:0.34,fontSize:13,color:"A99A92",fontFace:B,isTextBox:true,margin:0});
-s.addShape(pres.ShapeType.roundRect,{x:0.85,y:1.82,w:5.7,h:3.5,rectRadius:0.09,fill:{color:"3B2E2A"},line:{color:TERRA,width:1.5}});
+s.addShape(pres.ShapeType.roundRect,{x:0.85,y:1.82,w:5.7,h:3.85,rectRadius:0.09,fill:{color:"3B2E2A"},line:{color:TERRA,width:1.5}});
 s.addText("B0   사전등록 기준 1위",{x:1.15,y:2.02,w:5.1,h:0.36,fontSize:16,bold:true,color:TERRA,fontFace:H,isTextBox:true,margin:0});
 s.addText("z_LS = log(π̄_LS) + log k_LS\nz_LQ = log(π̄_LQ) + log k_LQ\nκ 없음 · ω = 0 · b 전부 0 고정",
-  {x:1.15,y:2.48,w:5.1,h:1.0,fontSize:12.5,color:WHITE,lineSpacing:19,fontFace:B,isTextBox:true,margin:0});
-[["LS 사후 가중","0.8550"],["LS MSE","0.1343"],["LQ 사후 가중","0.7812"],["prior 학습 파라미터","0개"]]
+  {x:1.15,y:2.46,w:5.1,h:1.0,fontSize:12,color:WHITE,lineSpacing:18,fontFace:B,isTextBox:true,margin:0});
+[["LS 사전 가중","0.8400"],["LS 사후 가중","0.8550"],["LQ 사전 가중","0.7698"],
+ ["LQ 사후 가중","0.7812"],["LS MSE (사후)","0.1343"],["prior 학습 파라미터","0개"]]
  .forEach(([k,v],i)=>{
-  s.addText(k,{x:1.15,y:3.62+i*0.4,w:2.9,h:0.3,fontSize:11,color:"A99A92",fontFace:B,isTextBox:true,margin:0});
-  s.addText(v,{x:4.2,y:3.62+i*0.4,w:2.1,h:0.3,fontSize:12,bold:true,color:WHITE,align:"right",fontFace:B,isTextBox:true,margin:0});
+  s.addText(k,{x:1.15,y:3.52+i*0.345,w:2.9,h:0.3,fontSize:11,color:"A99A92",fontFace:B,isTextBox:true,margin:0});
+  s.addText(v,{x:4.2,y:3.52+i*0.345,w:2.1,h:0.3,fontSize:12,bold:true,color:WHITE,align:"right",fontFace:B,isTextBox:true,margin:0});
 });
-s.addShape(pres.ShapeType.roundRect,{x:6.95,y:1.82,w:5.5,h:3.5,rectRadius:0.09,fill:{color:"3B2E2A"},line:{color:SAGE,width:1.5}});
+s.addShape(pres.ShapeType.roundRect,{x:6.95,y:1.82,w:5.5,h:3.85,rectRadius:0.09,fill:{color:"3B2E2A"},line:{color:SAGE,width:1.5}});
 s.addText("C0   사후 탐색 포함 1위",{x:7.25,y:2.02,w:4.9,h:0.36,fontSize:16,bold:true,color:"8FB8A2",fontFace:H,isTextBox:true,margin:0});
-s.addText("B0과 같되 b_LQ만 학습한다\n(b_LQ = −4.12로 수렴)\n순위 식은 B0과 완전히 동일",
-  {x:7.25,y:2.48,w:4.9,h:1.0,fontSize:12.5,color:WHITE,lineSpacing:19,fontFace:B,isTextBox:true,margin:0});
-[["LS 사후 가중","0.8529"],["LS MSE","0.1338"],["LQ 사후 가중","0.8158"],["prior 학습 파라미터","1개"]]
+s.addText("B0과 같되 b_LQ만 학습한다 (−4.12로 수렴)\nLS 식은 B0과 글자 하나 다르지 않다\n→ LS 사전확률 최대 절대차 0.00e+00",
+  {x:7.25,y:2.46,w:4.9,h:1.0,fontSize:12,color:WHITE,lineSpacing:18,fontFace:B,isTextBox:true,margin:0});
+[["LS 사전 가중","0.8400"],["LS 사후 가중","0.8529"],["LQ 사전 가중","0.7698"],
+ ["LQ 사후 가중","0.8158"],["LS MSE (사후)","0.1338"],["prior 학습 파라미터","1개"]]
  .forEach(([k,v],i)=>{
-  s.addText(k,{x:7.25,y:3.62+i*0.4,w:2.8,h:0.3,fontSize:11,color:"A99A92",fontFace:B,isTextBox:true,margin:0});
-  s.addText(v,{x:10.1,y:3.62+i*0.4,w:2.05,h:0.3,fontSize:12,bold:true,color:i===2||i===1?"8FB8A2":WHITE,align:"right",fontFace:B,isTextBox:true,margin:0});
+  s.addText(k,{x:7.25,y:3.52+i*0.345,w:2.8,h:0.3,fontSize:11,color:"A99A92",fontFace:B,isTextBox:true,margin:0});
+  s.addText(v,{x:10.1,y:3.52+i*0.345,w:2.05,h:0.3,fontSize:12,bold:true,color:(i===3||i===4)?"8FB8A2":WHITE,align:"right",fontFace:B,isTextBox:true,margin:0});
 });
 s.addText("발표에서는 B0을 주 결과로 두고, A2는 '제안하신 LOEO 절차는 A 계열에서 유의하게 작동했으나(+0.0817, P=0.98), 면적 항이 이미 같은 정보를 담고 있어 B 계열에서는 추가 이득이 없었다'로 방법 검증 결과에 배치하는 것을 권한다. C0은 다음 실험 제안으로 붙인다.",
-  {x:0.85,y:5.6,w:11.6,h:1.0,fontSize:12,color:"CFC4BC",lineSpacing:17,fontFace:B,isTextBox:true,margin:0});
+  {x:0.85,y:5.92,w:11.6,h:0.95,fontSize:11.5,color:"CFC4BC",lineSpacing:16,fontFace:B,isTextBox:true,margin:0});
 s.addNotes("가장 좋은 결과가 가장 적게 학습한 구성이라는 점이 이번 실험의 핵심 메시지다.");
 
 /* ───────────────────────── 14. 한계와 다음 ───────────────────────── */

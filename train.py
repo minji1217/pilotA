@@ -110,7 +110,7 @@ def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_
     else:
         # b만 학습하는 모드는 b가 log k 크기(평균 +8.0 LS / +6.7 LQ)를 상대해야 해서
         # 기존 [-2, 4]로는 상한에 붙는다. 실제로 bounded의 b_LQ가 -1.947로 하한에 붙었다.
-        wide = area_mode in ("b-only", "b-only-ctr")
+        wide = area_mode.endswith("-ctr") or area_mode == "b-only"
         default_b = (-12.0, 12.0) if wide else (-2.0, 4.0)
         pri=AreaPrior(mode=area_mode,
                       b_min=default_b[0] if b_min is None else b_min,

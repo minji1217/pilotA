@@ -93,6 +93,8 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
 
     # Prior는 mode에 따라 파라미터 이름과 변환이 달라진다.
     mode = getattr(pri, "mode", "free")
+    # AreaPrior의 "-ctr" 접미사는 중심화 여부일 뿐 c 구조는 앞부분이 정한다.
+    base_mode = getattr(pri, "base_mode", mode)
     # 후속실험 3의 AreaPrior는 c가 있고 모드 이름이 기존 Prior와 겹치므로 먼저 가른다.
     is_area = hasattr(pri, "c_value")
     if is_area:
@@ -106,7 +108,7 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
             spec += [
                 ("pri", "_b_raw", "b", [0, 1], ["LS", "LQ"], f"bounded[{pri.B_MIN},{pri.B_MAX}]"),
             ]
-        if mode == "free":
+        if base_mode == "free":
             spec += [
                 ("pri", "_c_raw", "c", [0, 1], ["LS", "LQ"], f"bounded[{pri.C_MIN},{pri.C_MAX}]"),
             ]
@@ -182,12 +184,12 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
         elif not pri.learn_ab:
             fixed += [("a", pri.a_value, f"fixed(area={mode})", ["LS", "LQ"]),
                       ("b", pri.b_value, f"fixed(area={mode})", ["LS", "LQ"])]
-        if mode == "tied":
+        if base_mode == "tied":
             fixed.append(("c", pri.c_value, "tied(c=a)", ["LS", "LQ"]))
         elif getattr(pri, "learn_c_lq", False):
             # c_LQ는 학습 파라미터라 위에서 기록됐다. 여기서는 고정된 c_LS만 남긴다.
             fixed.append(("c", pri.c_value, f"fixed(area={mode})", ["LS"]))
-        elif mode != "free":
+        elif base_mode != "free":
             fixed.append(("c", pri.c_value, f"fixed(area={mode})", ["LS", "LQ"]))
         # 중심화 모드는 실제로 뺀 값을 남겨야 재현이 된다.
         center = getattr(pri, "log_k_center", None)

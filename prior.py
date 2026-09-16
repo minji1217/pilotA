@@ -177,14 +177,17 @@ class AreaPrior(nn.Module):
     초기값은 a=1, b=0, c=1이다.
     """
 
+    # "-ctr" 접미사는 log k를 평균 중심화한다는 뜻이고, 앞부분이 실제 모드다.
+    # 중심화는 b가 흡수하는 재매개변수화라 b를 학습하는 모드에서만 의미가 있다.
+    # b=0으로 고정된 모드(fixed / a1-* / lq-*)는 중심화하면 유도식이 깨지므로 넣지 않는다.
     MODES = ("fixed", "tied", "bounded", "free", "a1-c05", "a1-c2",
-             "lq-c05", "lq-c075", "lq-c-free", "b-only", "b-only-ctr")
+             "lq-c05", "lq-c075", "lq-c-free", "b-only",
+             "tied-ctr", "bounded-ctr", "free-ctr", "b-only-ctr")
     # c를 학습하지 않는 모드의 c 값. tied는 c=a라서 여기 없다.
     FIXED_C = {"fixed": 1.0, "bounded": 1.0, "a1-c05": 0.5, "a1-c2": 2.0,
                "b-only": 1.0, "b-only-ctr": 1.0}
 
-    # log k에서 평균을 빼는 모드. fit_center()로 실제 평균을 채운다.
-    CENTER_MODES = ("b-only-ctr",)
+    CENTER_SUFFIX = "-ctr"
 
     # c를 hazard별로 두는 모드. (c_LS, c_LQ)이고 "learn"이면 그쪽만 학습한다.
     # LS는 유도식 c=1을 건드리지 않는다 - 실측 편향이 +0.006으로 이미 맞기 때문이다.
@@ -208,11 +211,17 @@ class AreaPrior(nn.Module):
         self.C_MIN, self.C_MAX = c_min, c_max
 
         # log k 중심화. 기본은 0이라 아무것도 빼지 않는다.
-        self.center_log_k = mode in self.CENTER_MODES
+        self.center_log_k = mode.endswith(self.CENTER_SUFFIX)
+        # 실제 동작을 정하는 것은 접미사를 뗀 이름이다.
+        self.base_mode = mode[: -len(self.CENTER_SUFFIX)] if self.center_log_k else mode
         self.register_buffer("log_k_center", torch.zeros(2, dtype=DTYPE))
 
-        self.learn_ab = mode in ("tied", "bounded", "free")
-        self.learn_b_only = mode in ("b-only", "b-only-ctr")
+        self.learn_ab = self.base_mode in ("tied", "bounded", "free")
+        self.learn_b_only = self.base_mode == "b-only"
+        if self.center_log_k and not (self.learn_ab or self.learn_b_only):
+            raise ValueError(
+                f"중심화는 b를 학습하는 모드에서만 의미가 있습니다: {mode}"
+            )
         if self.learn_b_only:
             # a와 c는 유도식에 고정하고 b만 학습한다.
             self.register_buffer("a", torch.ones(2, dtype=DTYPE))
@@ -229,11 +238,11 @@ class AreaPrior(nn.Module):
             self.register_buffer("b", torch.zeros(2, dtype=DTYPE))
 
         self.learn_c_lq = False
-        if mode == "free":
+        if self.base_mode == "free":
             c_init = _inverse_sigmoid((1.0 - c_min) / (c_max - c_min))
             self._c_raw = nn.Parameter(torch.full((2,), c_init, dtype=DTYPE))
-        elif mode in self.SPLIT_C:
-            c_ls, c_lq = self.SPLIT_C[mode]
+        elif self.base_mode in self.SPLIT_C:
+            c_ls, c_lq = self.SPLIT_C[self.base_mode]
             self.learn_c_lq = c_lq == "learn"
             # c_LQ를 학습하는 경우에도 buffer에는 초기값 1.0을 넣어 두고 c_value에서 덮는다.
             self.register_buffer(
@@ -242,8 +251,10 @@ class AreaPrior(nn.Module):
             if self.learn_c_lq:
                 c_init = _inverse_sigmoid((1.0 - c_min) / (c_max - c_min))
                 self._c_lq_raw = nn.Parameter(torch.full((1,), c_init, dtype=DTYPE))
-        elif mode in self.FIXED_C:
-            self.register_buffer("c", torch.full((2,), self.FIXED_C[mode], dtype=DTYPE))
+        elif self.base_mode in self.FIXED_C:
+            self.register_buffer(
+                "c", torch.full((2,), self.FIXED_C[self.base_mode], dtype=DTYPE)
+            )
 
     @staticmethod
     def _scale(raw: Tensor, lo: float, hi: float) -> Tensor:
@@ -276,9 +287,9 @@ class AreaPrior(nn.Module):
     @property
     def c_value(self) -> Tensor:
         """실제 식에 들어가는 c [2]. LS=0, LQ=1."""
-        if self.mode == "tied":
+        if self.base_mode == "tied":
             return self.a_value
-        if self.mode == "free":
+        if self.base_mode == "free":
             return self._scale(self._c_raw, self.C_MIN, self.C_MAX)
         if self.learn_c_lq:
             # c_LS는 유도식 그대로 고정하고 c_LQ만 학습한다.

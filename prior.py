@@ -141,14 +141,33 @@ class AreaPrior(nn.Module):
     "a1-c05" : a=1, b=0, c=0.5 고정. 넓은 곳을 감점한다.
     "a1-c2"  : a=1, b=0, c=2 고정. 넓은 곳에 가산점을 준다.
 
+    c를 LS와 LQ에 따로 두는 모드 (a=1, b=0은 계속 고정)
+    ----
+    실측: c=1에서 LS 예측 편향은 +0.006으로 유도식이 눈금까지 맞는데,
+    같은 c=1에서 LQ는 +0.256으로 크게 과대예측한다. c=0.5로 내리면 LQ는 -0.103까지
+    내려오지만 LS가 -0.494로 무너진다. 즉 두 hazard가 서로 다른 c를 원한다.
+
+    물리적으로도 그럴 만하다. c=1은 "칸끼리 독립"에서 나온 값인데, 액상화 감수성은
+    충적층·지질을 따라 공간적으로 강하게 상관되므로 1 − ∏(1 − p_i)가 과대추정한다.
+    유효 칸 수가 명목 k보다 작다는 뜻이고, 그것이 c_LQ < 1로 나타난다.
+
+    "lq-c05"    : c_LS=1, c_LQ=0.5 고정
+    "lq-c075"   : c_LS=1, c_LQ=0.75 고정 (편향이 0을 지나는 지점의 선형 추정)
+    "lq-c-free" : c_LS=1 고정, c_LQ만 학습 [c_min, c_max]
+
     학습하는 값은 기존 Prior처럼 sigmoid 재파라미터화로 범위를 지킨다.
     a ∈ [0.5, 2], b ∈ [b_min, b_max](기본 [-2, 4]), c ∈ [c_min, c_max](기본 [0, 2]).
     초기값은 a=1, b=0, c=1이다.
     """
 
-    MODES = ("fixed", "tied", "bounded", "free", "a1-c05", "a1-c2")
+    MODES = ("fixed", "tied", "bounded", "free", "a1-c05", "a1-c2",
+             "lq-c05", "lq-c075", "lq-c-free")
     # c를 학습하지 않는 모드의 c 값. tied는 c=a라서 여기 없다.
     FIXED_C = {"fixed": 1.0, "bounded": 1.0, "a1-c05": 0.5, "a1-c2": 2.0}
+
+    # c를 hazard별로 두는 모드. (c_LS, c_LQ)이고 "learn"이면 그쪽만 학습한다.
+    # LS는 유도식 c=1을 건드리지 않는다 - 실측 편향이 +0.006으로 이미 맞기 때문이다.
+    SPLIT_C = {"lq-c05": (1.0, 0.5), "lq-c075": (1.0, 0.75), "lq-c-free": (1.0, "learn")}
 
     A_MIN, A_MAX = 0.5, 2.0
 
@@ -178,9 +197,20 @@ class AreaPrior(nn.Module):
             self.register_buffer("a", torch.ones(2, dtype=DTYPE))
             self.register_buffer("b", torch.zeros(2, dtype=DTYPE))
 
+        self.learn_c_lq = False
         if mode == "free":
             c_init = _inverse_sigmoid((1.0 - c_min) / (c_max - c_min))
             self._c_raw = nn.Parameter(torch.full((2,), c_init, dtype=DTYPE))
+        elif mode in self.SPLIT_C:
+            c_ls, c_lq = self.SPLIT_C[mode]
+            self.learn_c_lq = c_lq == "learn"
+            # c_LQ를 학습하는 경우에도 buffer에는 초기값 1.0을 넣어 두고 c_value에서 덮는다.
+            self.register_buffer(
+                "c", torch.tensor([c_ls, 1.0 if self.learn_c_lq else c_lq], dtype=DTYPE)
+            )
+            if self.learn_c_lq:
+                c_init = _inverse_sigmoid((1.0 - c_min) / (c_max - c_min))
+                self._c_lq_raw = nn.Parameter(torch.full((1,), c_init, dtype=DTYPE))
         elif mode in self.FIXED_C:
             self.register_buffer("c", torch.full((2,), self.FIXED_C[mode], dtype=DTYPE))
 
@@ -205,6 +235,10 @@ class AreaPrior(nn.Module):
             return self.a_value
         if self.mode == "free":
             return self._scale(self._c_raw, self.C_MIN, self.C_MAX)
+        if self.learn_c_lq:
+            # c_LS는 유도식 그대로 고정하고 c_LQ만 학습한다.
+            c_lq = self._scale(self._c_lq_raw, self.C_MIN, self.C_MAX)
+            return torch.cat([self.c[:1], c_lq])
         return self.c
 
     def z(self, pi_ls, pi_lq, log_k_ls, log_k_lq):

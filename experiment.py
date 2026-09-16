@@ -27,7 +27,8 @@ from infer import infer
 from loader import load_eval_ground_truth, load_pilot_a_batch
 from marginal import marginalize
 from reporting import GROUP_ORDER, dump_params
-from train import GT_PATH, STATS_PATH, USGS_PATH, to_eval_gt, to_eval_pred, train
+from prior import AreaPrior, prior_log_w
+from train import DEFAULT_AREA_MODE, GT_PATH, STATS_PATH, USGS_PATH, to_eval_gt, to_eval_pred, train
 
 PRIOR_MODES = ("free", "fixed", "bounded")
 LAM_GAMMAS = (0.0, 0.1, 1.0, 10.0)
@@ -59,20 +60,29 @@ RUN_DIR = OUT_DIR / "experiments"
 DEFAULT_B_BOUND = 2.0
 
 
-def run_one(batch, eval_gt, gt_df, *, mode, lam, epochs, seed, b_bound=DEFAULT_B_BOUND):
+def run_tag(mode, lam, area_mode=None):
+    """결과 파일 꼬리표. 면적 prior(후속실험 3) 조건이면 prior_mode 대신 area 모드를 적는다."""
+    if area_mode is not None:
+        return f"area-{area_mode}_lam{lam:g}"
+    return f"{mode}_lam{lam:g}"
+
+
+def run_one(batch, eval_gt, gt_df, *, mode, lam, epochs, seed, b_bound=DEFAULT_B_BOUND,
+            area_mode=DEFAULT_AREA_MODE):
     """한 조합을 학습하고 평가 결과 한 행을 만든다."""
-    tag = f"{mode}_lam{lam:g}"
-    print(f"\n{'='*60}\n[{tag}] prior={mode}  lam_gamma={lam}\n{'='*60}")
+    tag = run_tag(mode, lam, area_mode)
+    prior_desc = f"area-{area_mode}" if area_mode is not None else mode
+    print(f"\n{'='*60}\n[{tag}] prior={prior_desc}  lam_gamma={lam}\n{'='*60}")
 
     reg, like, pri, hist = train(
         batch, seed=seed, epochs=epochs, lam_gamma=lam,
-        prior_mode=mode, b_bound=b_bound,
+        prior_mode=mode, b_bound=b_bound, area_mode=area_mode,
     )
 
     with torch.no_grad():
         out_r = reg(batch)
         out_l = like(batch, out_r.mu)
-        log_w = pri(batch.pi_ls, batch.pi_lq)
+        log_w = prior_log_w(pri, batch)
         log_joint, log_Py = marginalize(log_w, out_l.log_L)
         p_ls, p_lq = infer(log_joint, log_Py)
 
@@ -96,6 +106,7 @@ def run_one(batch, eval_gt, gt_df, *, mode, lam, epochs, seed, b_bound=DEFAULT_B
 
     with torch.no_grad():
         a, b = pri.a_value.detach(), pri.b_value.detach()
+        c = pri.c_value.detach() if hasattr(pri, "c_value") else None
         g_ls, g_lq = reg.gamma_ls.detach(), reg.gamma_lq.detach()
         sum_g2 = float((g_ls ** 2).sum() + (g_lq ** 2).sum())
 
@@ -111,9 +122,9 @@ def run_one(batch, eval_gt, gt_df, *, mode, lam, epochs, seed, b_bound=DEFAULT_B
     )
 
     return {
-        "prior_mode": mode,
+        "prior_mode": prior_desc,
         "lam_gamma": lam,
-        "b_bound": b_bound if mode == "bounded" else np.nan,
+        "b_bound": b_bound if (area_mode is None and mode == "bounded") else np.nan,
         "mse_ls": result.mse_ls,
         "mse_lq": result.mse_lq,
         # 후속실험 1의 완료기준. posterior AUC가 prior 단독 AUC를 넘어야 한다.
@@ -133,6 +144,8 @@ def run_one(batch, eval_gt, gt_df, *, mode, lam, epochs, seed, b_bound=DEFAULT_B
         "n": result.n,
         "a_LS": float(a[0]), "b_LS": float(b[0]),
         "a_LQ": float(a[1]), "b_LQ": float(b[1]),
+        "c_LS": float(c[0]) if c is not None else np.nan,
+        "c_LQ": float(c[1]) if c is not None else np.nan,
         "gamma_ls_max": float(g_ls.max()),
         "gamma_lq_max": float(g_lq.max()),
         "sum_gamma2": sum_g2,
@@ -202,11 +215,14 @@ def collect_params(out_path=None, tags=None):
 
 
 def main(*, epochs=3000, seed=0, modes=PRIOR_MODES, lams=LAM_GAMMAS,
-         b_bound=DEFAULT_B_BOUND, out_name="experiments.csv"):
+         b_bound=DEFAULT_B_BOUND, out_name="experiments.csv", area_mode=DEFAULT_AREA_MODE):
     batch = load_pilot_a_batch(STATS_PATH, USGS_PATH)
     eval_gt = load_eval_ground_truth(GT_PATH, batch)
     gt_df = to_eval_gt(eval_gt)
     out_csv = OUT_DIR / out_name
+    # 면적 prior 조건에서는 prior_mode가 쓰이지 않으므로 prior 축은 한 번만 돈다.
+    if area_mode is not None:
+        modes = tuple(modes)[:1]
 
     n_ev = int(eval_gt.event_idx.unique().numel())
     print(f"batch {batch.batch_size}행 / 평가 GT {eval_gt.batch_size}행 / 이벤트 {n_ev}개")
@@ -215,9 +231,10 @@ def main(*, epochs=3000, seed=0, modes=PRIOR_MODES, lams=LAM_GAMMAS,
     rows, tags = [], []
     for mode in modes:
         for lam in lams:
-            tags.append(f"{mode}_lam{lam:g}")
+            tags.append(run_tag(mode, lam, area_mode))
             rows.append(run_one(batch, eval_gt, gt_df, mode=mode, lam=lam,
-                                epochs=epochs, seed=seed, b_bound=b_bound))
+                                epochs=epochs, seed=seed, b_bound=b_bound,
+                                area_mode=area_mode))
             # 중간에 끊겨도 여기까지 결과는 남는다.
             pd.DataFrame(rows).to_csv(out_csv, index=False, encoding="utf-8-sig")
 
@@ -248,6 +265,9 @@ if __name__ == "__main__":
     ap.add_argument("--epochs", type=int, default=3000)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default="experiments.csv", help="outputs/ 아래 저장할 파일명")
+    ap.add_argument("--area-mode", default=DEFAULT_AREA_MODE or "none",
+                    choices=[*AreaPrior.MODES, "none"],
+                    help="후속실험 3 면적 prior 모드. none이면 기존 prior 그리드(--modes)를 돈다")
     ap.add_argument("--preset", choices=sorted(PRESETS),
                     help="후속실험 조건을 이름으로 지정한다. "
                          "지정하면 --modes/--lams/--b-bound를 덮어쓴다")
@@ -260,7 +280,8 @@ if __name__ == "__main__":
         print(f"preset={a.preset}: modes={modes} lams={lams} b_bound=±{b_bound}")
 
     _, run_tags = main(epochs=a.epochs, seed=a.seed, modes=modes,
-                       lams=lams, b_bound=b_bound, out_name=a.out)
+                       lams=lams, b_bound=b_bound, out_name=a.out,
+                       area_mode=None if a.area_mode == "none" else a.area_mode)
 
     # 이번에 돌린 조합만 모은다. 예전 실행분과 섞으면 표가 무너진다.
     suffix = f"_{a.preset}" if a.preset else ""

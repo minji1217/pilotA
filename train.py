@@ -5,7 +5,7 @@ import torch
 
 from likelihood import DamageLikelihood
 from regression import DamageRegression
-from prior import Prior
+from prior import AreaPrior, Prior, prior_log_w
 from marginal import marginalize
 from infer import infer
 from loader import load_eval_ground_truth, load_pilot_a_batch
@@ -18,9 +18,13 @@ STATS_PATH = "raw/재난프로젝트_시정촌별_통계데이터.xlsx"
 USGS_PATH = "raw/재난프로젝트_시정촌별_USGS.xlsx"
 GT_PATH = "validation/LS_LF 데이터자료.xlsx"
 
+# 후속실험 3: 이 브랜치의 prior 조건. followup3-area-avg-<모드> 브랜치마다 이 값만 다르다.
+# z = a·log p̄ + b + c·log k (prior.AreaPrior). None이면 기존 Prior(a·logit(pi)+b)를 쓴다.
+DEFAULT_AREA_MODE = "fixed"
 
-def save_predictions(batch, p_ls, p_lq, path="outputs/predictions.csv"):
-    """전체 382행의 사후확률을 저장한다."""
+
+def save_predictions(batch, p_ls, p_lq, path="outputs/predictions.csv", extra=None):
+    """전체 행의 사후확률을 저장한다. extra={컬럼명: 값}이면 옆에 붙인다."""
     Path(path).parent.mkdir(parents=True, exist_ok=True)
 
     df = pd.DataFrame({
@@ -30,6 +34,8 @@ def save_predictions(batch, p_ls, p_lq, path="outputs/predictions.csv"):
         "p_ls": p_ls.detach().numpy(),
         "p_lq": p_lq.detach().numpy(),
     })
+    for name, values in (extra or {}).items():
+        df[name] = values
     df.to_csv(path, index=False, encoding="utf-8-sig")
     print(f"저장: {path}  ({len(df)}행)")
     return df
@@ -72,7 +78,7 @@ def to_eval_gt(eval_gt: EvalGroundTruthBatch):
 
 
 def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_bound=2.0,
-          b_min=None,b_max=None):
+          b_min=None,b_max=None,area_mode=None,c_min=0.0,c_max=2.0):
     """
     lam_gamma  : gamma에 거는 L2 정규화 계수. loss에 lam_gamma * sum(gamma^2)를 더한다.
                  gamma에 N(0, 1/(2*lam_gamma)) prior를 준 MAP 추정과 같다.
@@ -81,12 +87,20 @@ def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_
     b_bound    : prior_mode="bounded"일 때 b의 범위. b in [-b_bound, +b_bound]
     b_min/b_max: 비대칭 b 범위가 필요할 때 b_bound 대신 쓴다.
                  후속실험 2의 b in [-2, 4]가 이 경우다. 둘 다 줘야 한다.
+    area_mode  : 후속실험 3. AreaPrior 모드(prior.AreaPrior.MODES). 주면 prior_mode·b_bound는 쓰지 않는다.
+                 b 범위는 b_min/b_max(기본 [-2, 4]), c 범위는 c_min/c_max(기본 [0, 2])다.
     """
     torch.manual_seed(seed)
 
     like=DamageLikelihood()
     reg=DamageRegression()
-    pri=Prior(mode=prior_mode,b_bound=b_bound,b_min=b_min,b_max=b_max)
+    if area_mode is None:
+        pri=Prior(mode=prior_mode,b_bound=b_bound,b_min=b_min,b_max=b_max)
+    else:
+        pri=AreaPrior(mode=area_mode,
+                      b_min=-2.0 if b_min is None else b_min,
+                      b_max=4.0 if b_max is None else b_max,
+                      c_min=c_min,c_max=c_max)
 
     history = []
     reg.initialize_from_batch(batch)
@@ -99,7 +113,7 @@ def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_
         out_r=reg(batch)
         # -> 이제 람다들을 만들었으니 이걸... 어떻게 하더라 곱해서 L 하나 내뱉는걸로
         out_l=like(batch,out_r.mu)
-        w_batch=pri(batch.pi_ls,batch.pi_lq)
+        w_batch=prior_log_w(pri,batch)
         
         _,log_Py=marginalize(w_batch,out_l.log_L)
         nll=-log_Py.sum()
@@ -152,10 +166,19 @@ if __name__ == "__main__":
     ap.add_argument("--epochs", type=int, default=3000)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--lr", type=float, default=0.02)
+    ap.add_argument("--area-mode", default=DEFAULT_AREA_MODE or "none",
+                    choices=[*AreaPrior.MODES, "none"],
+                    help="후속실험 3 면적 prior 모드. none이면 기존 prior(--prior-mode)를 쓴다")
+    ap.add_argument("--c-min", type=float, default=0.0, help="area-mode=free일 때 c의 하한")
+    ap.add_argument("--c-max", type=float, default=2.0, help="area-mode=free일 때 c의 상한")
     ap.add_argument("--tag", default="",
                     help="출력 파일명 뒤에 붙일 꼬리표. 여러 설정을 비교할 때 서로 덮이지 않는다")
     args = ap.parse_args()
 
+    area_mode = None if args.area_mode == "none" else args.area_mode
+    if area_mode is not None and not args.tag:
+        # 조건마다 결과 파일이 서로 덮이지 않게 한다.
+        args.tag = f"area-{area_mode}"
     sfx = f"_{args.tag}" if args.tag else ""
 
     # 학습용 batch(382행)를 만들고, 선배가 만든 API로 평가용 GT를 정렬해 받는다.
@@ -168,13 +191,17 @@ if __name__ == "__main__":
         b_desc = f"b∈[{args.b_min}, {args.b_max}]"
     else:
         b_desc = f"b∈[-{args.b_bound}, {args.b_bound}]"
-    print(f"설정: prior_mode={args.prior_mode} / lam_gamma={args.lam_gamma}"
-          + (f" / {b_desc}" if args.prior_mode == "bounded" else ""))
+    if area_mode is None:
+        print(f"설정: prior_mode={args.prior_mode} / lam_gamma={args.lam_gamma}"
+              + (f" / {b_desc}" if args.prior_mode == "bounded" else ""))
+    else:
+        print(f"설정: area_mode={area_mode} (z = a·log p̄ + b + c·log k) / lam_gamma={args.lam_gamma}")
 
     reg, like, pri, hist = train(
         batch=batch, seed=args.seed, epochs=args.epochs, lr=args.lr,
         lam_gamma=args.lam_gamma, prior_mode=args.prior_mode, b_bound=args.b_bound,
         b_min=args.b_min, b_max=args.b_max,
+        area_mode=area_mode, c_min=args.c_min, c_max=args.c_max,
     )
     save_loss_history(hist, tag=args.tag)
     dump_params(reg, like, pri, path=f"outputs/params{sfx}.csv")
@@ -182,16 +209,27 @@ if __name__ == "__main__":
     with torch.no_grad():                        # ← grad 안 만듦
         out_r = reg(batch)
         out_l = like(batch, out_r.mu)
-        log_w = pri(batch.pi_ls, batch.pi_lq)
+        log_w = prior_log_w(pri, batch)
         log_joint, log_Py = marginalize(log_w, out_l.log_L)
         p_ls, p_lq = infer(log_joint, log_Py)
-
-    save_predictions(batch, p_ls, p_lq, path=f"outputs/predictions{sfx}.csv")
 
     gt = to_eval_gt(eval_gt)
     pred = to_eval_pred(batch, p_ls, p_lq, eval_gt)
     result = evaluate(gt, pred)
-    save_eval(result, gt, tag=args.tag)
+
+    # 후속실험 3: 면적 항을 넣은 '자기 prior' 단독 성능도 같은 행에서 잰다.
+    # 사후가 이 값을 넘어야 모델(피해 우도)이 prior 위에 뭔가를 더한 것이다.
+    own, extra = None, None
+    if isinstance(pri, AreaPrior):
+        with torch.no_grad():
+            z_ls, z_lq = pri.z(batch.pi_ls, batch.pi_lq, batch.log_k_ls, batch.log_k_lq)
+            own_ls, own_lq = torch.sigmoid(z_ls), torch.sigmoid(z_lq)
+        own = evaluate(gt, to_eval_pred(batch, own_ls, own_lq, eval_gt))
+        extra = {"log_k_ls": batch.log_k_ls.numpy(), "log_k_lq": batch.log_k_lq.numpy(),
+                 "own_prior_ls": own_ls.numpy(), "own_prior_lq": own_lq.numpy()}
+
+    save_predictions(batch, p_ls, p_lq, path=f"outputs/predictions{sfx}.csv", extra=extra)
+    save_eval(result, gt, tag=args.tag, own_prior=own)
 
     print(
         f"MSE_LS {result.mse_ls:.4f} (n={result.n_ls}) / "
@@ -207,6 +245,14 @@ if __name__ == "__main__":
         f"AUC_LQ {result.auc_lq_wavg:.4f} "
         f"(prior {result.auc_prior_lq_wavg:.4f})"
     )
+    if own is not None:
+        print(
+            f"자기 prior(면적 항 포함) 단독 AUC_LS 가중 {own.auc_ls_wavg:.4f} / 전체 {own.auc_ls:.4f} · "
+            f"AUC_LQ 가중 {own.auc_lq_wavg:.4f} / 전체 {own.auc_lq:.4f}"
+        )
+        a, b, c = pri.a_value.detach(), pri.b_value.detach(), pri.c_value.detach()
+        print(f"prior 파라미터 LS a={float(a[0]):.4f} b={float(b[0]):+.4f} c={float(c[0]):.4f} / "
+              f"LQ a={float(a[1]):.4f} b={float(b[1]):+.4f} c={float(c[1]):.4f}")
     print()
     print("이벤트별:")
     print(result.per_event.round(4).to_string(index=False))

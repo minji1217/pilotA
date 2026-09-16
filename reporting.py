@@ -66,7 +66,7 @@ EXPECTED_NUM_PARAMS = 48
 
 # 설계식에 나오는 순서대로 정렬하기 위한 기준
 GROUP_ORDER = ["alpha_c", "alpha_e", "beta_c", "delta_c",
-               "gamma_LS", "gamma_LQ", "phi_c", "a", "b"]
+               "gamma_LS", "gamma_LQ", "phi_c", "a", "b", "c"]
 
 
 def dump_params(reg, like, pri, path="outputs/params.csv"):
@@ -93,7 +93,19 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
 
     # Prior는 mode에 따라 파라미터 이름과 변환이 달라진다.
     mode = getattr(pri, "mode", "free")
-    if mode == "free":
+    # 후속실험 3의 AreaPrior는 c가 있고 모드 이름이 기존 Prior와 겹치므로 먼저 가른다.
+    is_area = hasattr(pri, "c_value")
+    if is_area:
+        if pri.learn_ab:
+            spec += [
+                ("pri", "_a_raw", "a", [0, 1], ["LS", "LQ"], f"bounded[{pri.A_MIN},{pri.A_MAX}]"),
+                ("pri", "_b_raw", "b", [0, 1], ["LS", "LQ"], f"bounded[{pri.B_MIN},{pri.B_MAX}]"),
+            ]
+        if mode == "free":
+            spec += [
+                ("pri", "_c_raw", "c", [0, 1], ["LS", "LQ"], f"bounded[{pri.C_MIN},{pri.C_MAX}]"),
+            ]
+    elif mode == "free":
         spec += [
             ("pri", "a", "a", [0, 1], ["LS", "LQ"], "none"),
             ("pri", "b", "b", [0, 1], ["LS", "LQ"], "none"),
@@ -120,7 +132,8 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
             val = F.softplus(raw)
         elif transform.startswith("bounded"):
             # prior의 a, b는 sigmoid 재파라미터화라 raw와 실제 값이 다르다.
-            val = (pri.a_value if pname == "_a_raw" else pri.b_value).detach()
+            val = {"_a_raw": pri.a_value, "_b_raw": pri.b_value,
+                   "_c_raw": getattr(pri, "c_value", None)}[pname].detach()
         else:
             val = raw
 
@@ -147,7 +160,25 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
         "raw_value": 0.0, "value": 0.0,
     })
 
-    if mode == "fixed":
+    if is_area:
+        # 학습하지 않는 a, b, c도 어떤 값이 쓰였는지 남겨야 재현이 된다.
+        fixed = []
+        if not pri.learn_ab:
+            fixed += [("a", pri.a_value, f"fixed(area={mode})"),
+                      ("b", pri.b_value, f"fixed(area={mode})")]
+        if mode == "tied":
+            fixed.append(("c", pri.c_value, "tied(c=a)"))
+        elif mode != "free":
+            fixed.append(("c", pri.c_value, f"fixed(area={mode})"))
+        for group, vals, transform in fixed:
+            for i, lab in enumerate(["LS", "LQ"]):
+                v = float(vals.detach()[i])
+                rows.append({
+                    "module": "pri", "group": group, "param": group,
+                    "idx": i, "label": lab, "transform": transform,
+                    "raw_value": v, "value": v,
+                })
+    elif mode == "fixed":
         # 학습 대상이 아니지만 어떤 값이 쓰였는지는 남겨야 재현이 된다.
         for i, lab in enumerate(["LS", "LQ"]):
             for group, value in (("a", 1.0), ("b", 0.0)):
@@ -220,10 +251,11 @@ def save_loss_history(hist_df, dir_="outputs", tag=""):
     return hist_df
 
 
-def save_eval(result, gt_df, dir_="outputs", tag=""):
+def save_eval(result, gt_df, dir_="outputs", tag="", own_prior=None):
     """eval.evaluate() 결과를 CSV 3종으로 저장한다.
 
-    원래 train.py에 있던 함수를 그대로 옮긴 것이다. 동작은 바뀌지 않았다.
+    원래 train.py에 있던 함수를 그대로 옮긴 것이다.
+    own_prior(후속실험 3)를 주면 면적 항을 넣은 '자기 prior' 단독 성능을 같은 파일에 덧붙인다.
     """
     Path(dir_).mkdir(parents=True, exist_ok=True)
     sfx = f"_{tag}" if tag else ""
@@ -254,6 +286,13 @@ def save_eval(result, gt_df, dir_="outputs", tag=""):
         "n_pos_lq": int(gt_df.loc[lq_ok, "lq_true"].sum()),
         "note": "LS/LQ 각각의 eval_mask로 독립 평가",
     }])
+    if own_prior is not None:
+        summary["auc_ownprior_ls"] = own_prior.auc_ls
+        summary["auc_ownprior_lq"] = own_prior.auc_lq
+        summary["auc_ownprior_ls_wavg"] = own_prior.auc_ls_wavg
+        summary["auc_ownprior_lq_wavg"] = own_prior.auc_lq_wavg
+        summary["mse_ownprior_ls"] = own_prior.mse_ls
+        summary["mse_ownprior_lq"] = own_prior.mse_lq
     summary.to_csv(f"{dir_}/eval_summary{sfx}.csv", index=False, encoding="utf-8-sig")
 
     # (2) 상세 — 시정촌별로 정답/예측/오차를 펼쳐서 확인용
@@ -273,7 +312,13 @@ def save_eval(result, gt_df, dir_="outputs", tag=""):
     )
 
     # (3) 이벤트별 — 완료기준이 "2004 니가타 LS AUC"라 이벤트 분해가 있어야 판정된다.
-    result.per_event.to_csv(
+    per_event = result.per_event
+    if own_prior is not None:
+        own = own_prior.per_event[["event_idx", "auc_ls", "auc_lq"]].rename(
+            columns={"auc_ls": "auc_ownprior_ls", "auc_lq": "auc_ownprior_lq"}
+        )
+        per_event = per_event.merge(own, on="event_idx", how="left")
+    per_event.to_csv(
         f"{dir_}/eval_per_event{sfx}.csv", index=False, encoding="utf-8-sig"
     )
 
@@ -287,10 +332,14 @@ COMPARISON_METRICS = [
     ("auc_prior_ls_wavg", "LS prior 가중평균"),
     ("auc_ls",            "LS AUC 전체"),
     ("auc_prior_ls",      "LS prior 전체"),
+    ("auc_ownprior_ls_wavg", "LS 자기prior 가중평균"),
+    ("auc_ownprior_ls",      "LS 자기prior 전체"),
     ("auc_lq_wavg",       "LQ AUC 가중평균"),
     ("auc_prior_lq_wavg", "LQ prior 가중평균"),
     ("auc_lq",            "LQ AUC 전체"),
     ("auc_prior_lq",      "LQ prior 전체"),
+    ("auc_ownprior_lq_wavg", "LQ 자기prior 가중평균"),
+    ("auc_ownprior_lq",      "LQ 자기prior 전체"),
     ("mse_ls",            "MSE_LS"),
     ("mse_lq",            "MSE_LQ"),
     ("n_ls",              "LS 평가행"),
@@ -333,8 +382,14 @@ def merge_runs(runs, dir_="outputs", out_prefix="comparison"):
             p = pd.read_csv(ppath)
             b_rows = p.loc[p["group"] == "b", "transform"]
             row["b 범위"] = b_rows.iloc[0] if len(b_rows) else ""
-            row["학습 파라미터"] = int((p["transform"] != "fixed(reference)").sum())
-        row.update({label: s[col] for col, label in COMPARISON_METRICS})
+            c_rows = p.loc[p["group"] == "c", "transform"]
+            row["c"] = c_rows.iloc[0] if len(c_rows) else ""
+            # 고정값(fixed…)과 묶인 값(tied…)은 학습 파라미터가 아니다.
+            row["학습 파라미터"] = int(
+                (~p["transform"].astype(str).str.startswith(("fixed", "tied"))).sum()
+            )
+        # 자기prior 열은 후속실험 3 실행분에만 있다. 없으면 빈칸으로 둔다.
+        row.update({label: s.get(col, float("nan")) for col, label in COMPARISON_METRICS})
         rows.append(row)
     auc = pd.DataFrame(rows)
     auc["LS − prior"] = auc["LS AUC 가중평균"] - auc["LS prior 가중평균"]

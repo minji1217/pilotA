@@ -12,6 +12,7 @@ Pilot A - data/loader.py
 6. LS_prior(평균), LQ_prior(평균), PGV와 Exposure가 모두 있는 행만 남긴다.
 7. 통계 XLSX의 wooden_ratio / mountain_ratio를 최종 모델 행 기준으로 표준화해 z_wood / z_mtn을 만든다.
 8. population / households_general로 E를 만든다.
+8-1. (후속실험 3) raw/시정촌_면적.csv의 면적과 격자 칸 넓이로 log k(LS 7.5″, LQ 15″)를 만든다.
 9. PyTorch PilotABatch로 변환하고 batch.validate()를 실행한다.
 10. eval용 GT가 필요하면 LS_LF 데이터자료.xlsx를 읽어 EvalGroundTruthBatch를 별도로 만든다.
 
@@ -24,11 +25,20 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Iterable
 
+import numpy as np
 import pandas as pd
 import torch
 
 from schema import (
+    AREA_COLUMN,
+    AREA_EVENT_COLUMN,
+    AREA_PATH,
     CHANNELS,
+    KM_PER_DEG_LAT,
+    KM_PER_DEG_LON_EQUATOR,
+    LQ_GRID_ARCSEC,
+    LS_GRID_ARCSEC,
+    PREFECTURE_CAPITAL_LAT,
     DAMAGE_COLUMN_MAP,
     DTYPE,
     EVENTS,
@@ -481,6 +491,69 @@ def _standardize_vulnerability_covariates(df: pd.DataFrame) -> pd.DataFrame:
 
 
 
+def _grid_cell_km2(lat_deg, arcsec: float):
+    """위도 lat_deg에서 arcsec × arcsec 격자 한 칸의 넓이(km²)."""
+    deg = arcsec / 3600.0
+    return (deg * KM_PER_DEG_LON_EQUATOR * np.cos(np.radians(lat_deg))) * (deg * KM_PER_DEG_LAT)
+
+
+def _add_area_columns(df: pd.DataFrame, area_path: str | Path) -> pd.DataFrame:
+    """
+    후속실험 3: 시정촌 면적으로 면적 항 log k를 만든다.
+
+        log_k_ls = log(면적 / 7.5″ 칸 넓이)
+        log_k_lq = log(면적 / 15″ 칸 넓이)
+
+    - 면적은 (이벤트, 시정촌코드)로 붙인다. 같은 시정촌도 이벤트 시점마다 합병 전후 면적이 다를 수 있다.
+    - 최종 모델 행 중 면적이 없거나 0 이하이면 멈춘다. 조용히 빼면 학습 행 수가 달라진다.
+    - 칸 넓이는 현청 소재지 위도로 계산한다(schema.PREFECTURE_CAPITAL_LAT).
+    """
+    area_path = Path(area_path)
+    if not area_path.exists():
+        raise FileNotFoundError(f"시정촌 면적 CSV를 찾을 수 없습니다: {area_path}")
+
+    area = pd.read_csv(area_path, dtype={MUNICIPALITY_CODE_COLUMN: str})
+    need = {AREA_EVENT_COLUMN, MUNICIPALITY_CODE_COLUMN, AREA_COLUMN}
+    if need - set(area.columns):
+        raise ValueError(f"{area_path}에 필요한 컬럼이 없습니다: {sorted(need - set(area.columns))}")
+    area[MUNICIPALITY_CODE_COLUMN] = area[MUNICIPALITY_CODE_COLUMN].map(_normalize_municipality_code)
+    area = area[[AREA_EVENT_COLUMN, MUNICIPALITY_CODE_COLUMN, AREA_COLUMN]].rename(
+        columns={AREA_EVENT_COLUMN: "_area_event"}
+    )
+    if area.duplicated(["_area_event", MUNICIPALITY_CODE_COLUMN]).any():
+        raise ValueError(f"{area_path}에 (이벤트, 시정촌코드) 중복이 있습니다.")
+
+    result = df.copy()
+    result["_area_event"] = result["event_idx"].map(lambda i: EVENTS[int(i)])
+    n_before = len(result)
+    result = result.merge(
+        area, on=["_area_event", MUNICIPALITY_CODE_COLUMN], how="left", validate="many_to_one"
+    )
+    if len(result) != n_before:
+        raise ValueError("면적 join 후 행 수가 바뀌었습니다.")
+
+    bad = result[AREA_COLUMN].isna() | ~(result[AREA_COLUMN] > 0)
+    if bad.any():
+        raise ValueError(
+            f"최종 모델 행에 면적이 없거나 0 이하입니다: "
+            f"{result.loc[bad, ['_area_event', MUNICIPALITY_CODE_COLUMN]].to_dict('records')[:10]}"
+        )
+
+    lat = result[MUNICIPALITY_CODE_COLUMN].str[:2].map(PREFECTURE_CAPITAL_LAT)
+    if lat.isna().any():
+        raise ValueError(
+            f"현청 위도가 없는 都道府県 코드가 있습니다: "
+            f"{sorted(result.loc[lat.isna(), MUNICIPALITY_CODE_COLUMN].str[:2].unique())}"
+        )
+
+    for name, arcsec in (("ls", LS_GRID_ARCSEC), ("lq", LQ_GRID_ARCSEC)):
+        cell = _grid_cell_km2(lat.to_numpy(dtype="float64"), arcsec)
+        result[f"cell_km2_{name}"] = cell
+        result[f"log_k_{name}"] = np.log(result[AREA_COLUMN].to_numpy(dtype="float64") / cell)
+
+    return result.drop(columns="_area_event")
+
+
 def _add_exposure_columns(df: pd.DataFrame) -> pd.DataFrame:
     """
     population / households_general을 6채널 Exposure E로 확장한다.
@@ -534,6 +607,14 @@ def _to_batch(df: pd.DataFrame) -> PilotABatch:
         ),
         pi_lq=torch.tensor(
             df["pi_lq"].to_numpy(dtype="float64"),
+            dtype=DTYPE,
+        ),
+        log_k_ls=torch.tensor(
+            df["log_k_ls"].to_numpy(dtype="float64"),
+            dtype=DTYPE,
+        ),
+        log_k_lq=torch.tensor(
+            df["log_k_lq"].to_numpy(dtype="float64"),
             dtype=DTYPE,
         ),
         event_idx=torch.tensor(
@@ -601,6 +682,7 @@ def load_pilot_a_batch(
     stats_path: str | Path,
     usgs_path: str | Path,
     *,
+    area_path: str | Path = AREA_PATH,
     strict_expected_rows: bool = True,
 ) -> PilotABatch:
     """
@@ -609,6 +691,7 @@ def load_pilot_a_batch(
     입력:
     - stats_path: 재난프로젝트_시정촌별_통계데이터.xlsx
     - usgs_path: 재난프로젝트_시정촌별_USGS.xlsx
+    - area_path: 시정촌 면적 CSV (후속실험 3의 log k용, 기본 raw/시정촌_면적.csv)
     - strict_expected_rows: True이면 현재 확인한 439/419/418 행 수가 맞는지 검사
 
     출력: PilotABatch
@@ -628,6 +711,9 @@ def load_pilot_a_batch(
 
     # 최종 모델 행(현재 기대 418행)을 기준으로 취약성 공변량을 표준화한다.
     model_df = _standardize_vulnerability_covariates(model_df)
+
+    # 후속실험 3: 면적 항 log k
+    model_df = _add_area_columns(model_df, area_path)
 
     model_df = _add_exposure_columns(model_df)
 

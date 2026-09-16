@@ -25,6 +25,7 @@ import torch
 from eval import evaluate
 from infer import infer
 from loader import load_eval_ground_truth, load_pilot_a_batch
+from schema import LS_GT_VARIANTS, LS_UNKNOWN_POLICIES
 from marginal import marginalize
 from reporting import GROUP_ORDER, dump_params
 from train import GT_PATH, STATS_PATH, USGS_PATH, to_eval_gt, to_eval_pred, train
@@ -223,14 +224,25 @@ def collect_params(out_path=None, tags=None):
 
 def main(*, epochs=3000, seed=0, modes=PRIOR_MODES, lams=LAM_GAMMAS,
          b_bound=DEFAULT_B_BOUND, b_min=None, b_max=None,
-         out_name="experiments.csv", tag_suffix=""):
+         out_name="experiments.csv", tag_suffix="",
+         ls_variant="all", unknown_policy="exclude"):
     batch = load_pilot_a_batch(STATS_PATH, USGS_PATH)
-    eval_gt = load_eval_ground_truth(GT_PATH, batch)
+    eval_gt = load_eval_ground_truth(
+        GT_PATH, batch, ls_variant=ls_variant, unknown_policy=unknown_policy,
+    )
     gt_df = to_eval_gt(eval_gt)
     out_csv = OUT_DIR / out_name
 
     n_ev = int(eval_gt.event_idx.unique().numel())
     print(f"batch {batch.batch_size}행 / 평가 GT {eval_gt.batch_size}행 / 이벤트 {n_ev}개")
+
+    # 재평가는 학습을 바꾸지 않는다. 바뀌는 것은 LS 평가에 들어가는 행뿐이므로
+    # 그 구성을 먼저 찍어 둔다. 같은 seed면 모델은 완전히 동일하다.
+    ls_mask = eval_gt.ls_eval_mask
+    n_ls_eval = int(ls_mask.sum())
+    n_ls_pos = int(eval_gt.gt_ls[ls_mask].sum())
+    print(f"GT 변형 ls_variant={ls_variant} (불명={unknown_policy}): "
+          f"LS 평가 {n_ls_eval}행 / 양성 {n_ls_pos}행")
     b_desc = f"[{b_min}, {b_max}]" if b_max is not None else f"±{b_bound}"
     print(f"조합 {len(modes) * len(lams)}개 x {epochs}에폭 (bounded의 b 범위 {b_desc})")
 
@@ -275,6 +287,12 @@ if __name__ == "__main__":
     ap.add_argument("--epochs", type=int, default=3000)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default="experiments.csv", help="outputs/ 아래 저장할 파일명")
+    ap.add_argument("--gt-variant", choices=list(LS_GT_VARIANTS), default="all",
+                    help="LS GT 정의. natmix면 ls_type이 자연/혼재인 행만 양성으로 센다")
+    ap.add_argument("--unknown-policy", choices=list(LS_UNKNOWN_POLICIES),
+                    default="exclude",
+                    help="--gt-variant natmix에서 ls_type=불명을 어떻게 다룰지. "
+                         "exclude=평가 제외(기본), negative=0으로 센다")
     ap.add_argument("--preset", choices=[*sorted(PRESETS), "none"],
                     default=DEFAULT_PRESET,
                     help="후속실험 조건을 이름으로 지정한다. "
@@ -298,9 +316,17 @@ if __name__ == "__main__":
         b_desc = f"[{b_min}, {b_max}]" if b_max is not None else f"±{b_bound}"
         print(f"preset={a.preset}: modes={modes} lams={lams} b={b_desc}")
 
+    # GT 변형은 학습이 아니라 평가만 바꾼다. 같은 checkout에서 원본 평가와
+    # 재평가를 같이 돌리므로 결과 파일이 덮이지 않도록 꼬리표를 붙인다.
+    if a.gt_variant != "all":
+        tag_suffix += f"-{a.gt_variant}"
+        if a.unknown_policy != "exclude":
+            tag_suffix += f"-{a.unknown_policy}"
+
     _, run_tags = main(epochs=a.epochs, seed=a.seed, modes=modes,
                        lams=lams, b_bound=b_bound, b_min=b_min, b_max=b_max,
-                       out_name=a.out, tag_suffix=tag_suffix)
+                       out_name=a.out, tag_suffix=tag_suffix,
+                       ls_variant=a.gt_variant, unknown_policy=a.unknown_policy)
 
     # 이번에 돌린 조합만 모은다. 예전 실행분과 섞으면 표가 무너진다.
     suffix = f"_{a.preset}" if a.preset else ""

@@ -29,6 +29,11 @@ import torch
 
 from schema import (
     CHANNELS,
+    GT_LS_TYPE_COLUMN,
+    LS_GT_VARIANTS,
+    LS_TYPE_POSITIVE,
+    LS_TYPE_UNKNOWN,
+    LS_UNKNOWN_POLICIES,
     DAMAGE_COLUMN_MAP,
     DTYPE,
     EVENTS,
@@ -761,9 +766,70 @@ def _parse_binary_gt_flag(
     return numeric
 
 
+def _apply_ls_type_variant(
+    result: pd.DataFrame,
+    df: pd.DataFrame,
+    *,
+    sheet_name: str,
+    ls_variant: str,
+    unknown_policy: str,
+) -> pd.DataFrame:
+    """
+    LS GT를 사면 종별로 좁힌다 (후속실험 3-③ 자연+혼재 재평가).
+
+    ls_flag=1인 행만 종별 판정 대상이다. ls_flag=0은 애초에 붕괴가 없었으므로
+    음성 그대로 두고, ls_flag=NA는 이미 평가에서 빠져 있다.
+
+        자연 / 혼재 -> 양성 유지
+        불명        -> unknown_policy ("exclude" 평가 제외 / "negative" 0으로)
+        그 외 값    -> 오류. 조용히 넘기면 정의가 어긋난 채로 숫자가 나온다.
+    """
+    if GT_LS_TYPE_COLUMN not in df.columns:
+        raise ValueError(
+            f"[{sheet_name}] ls_variant='{ls_variant}'는 "
+            f"'{GT_LS_TYPE_COLUMN}' 컬럼을 요구합니다. "
+            f"이 컬럼이 없는 이벤트가 하나라도 있으면 이벤트마다 GT 정의가 달라지므로 "
+            f"평가를 진행하지 않습니다."
+        )
+
+    ls_type = (
+        df.loc[result.index, GT_LS_TYPE_COLUMN]
+        .astype("string")
+        .str.strip()
+    )
+    # 문자열 "NA"와 진짜 결측을 같게 본다. 둘 다 판정 대상이 아니라는 뜻이다.
+    ls_type = ls_type.where(~ls_type.isin(["", "NA", "NaN", "nan", "N/A"]), pd.NA)
+
+    positive = result["gt_ls"].eq(1) & result["ls_eval_mask"]
+
+    known = ls_type.isin(LS_TYPE_POSITIVE) | ls_type.eq(LS_TYPE_UNKNOWN)
+    bad = positive & ~known
+    if bad.any():
+        bad_values = sorted(
+            ls_type.loc[bad].fillna("<결측>").unique().tolist()
+        )
+        raise ValueError(
+            f"[{sheet_name}] ls_flag=1인데 {GT_LS_TYPE_COLUMN}가 "
+            f"{sorted(LS_TYPE_POSITIVE)} / '{LS_TYPE_UNKNOWN}' 중 하나가 아닙니다: {bad_values}"
+        )
+
+    unknown = positive & ls_type.eq(LS_TYPE_UNKNOWN)
+    if unknown_policy == "exclude":
+        # 자연인지 인공인지 모르는 행은 어느 쪽으로도 세지 않는다.
+        result.loc[unknown, "ls_eval_mask"] = False
+        result.loc[unknown, "gt_ls"] = 0
+    else:  # "negative"
+        result.loc[unknown, "gt_ls"] = 0
+
+    return result
+
+
 def _prepare_ls_ground_truth(
     gt_path: str | Path,
     event_name: str,
+    *,
+    ls_variant: str = "all",
+    unknown_policy: str = "exclude",
 ) -> pd.DataFrame:
     """
     한 이벤트의 LS GT를 정리한다.
@@ -814,6 +880,16 @@ def _prepare_ls_ground_truth(
         raise ValueError(
             f"[{sheet_name}] LS GT에는 '{GT_LS_FLAG_COLUMN}' 또는 "
             f"'{GT_LS_AREA_COLUMN}' 컬럼이 필요합니다."
+        )
+
+    # 후속실험 3-③: 자연+혼재만 양성으로 좁힌다. "all"이면 위 정의 그대로다.
+    if ls_variant != "all":
+        result = _apply_ls_type_variant(
+            result,
+            df,
+            sheet_name=sheet_name,
+            ls_variant=ls_variant,
+            unknown_policy=unknown_policy,
         )
 
     return result[
@@ -890,8 +966,19 @@ def _prepare_lq_ground_truth(
     ].reset_index(drop=True)
 
 
-def _prepare_eval_ground_truth_df(gt_path: str | Path) -> pd.DataFrame:
+def _prepare_eval_ground_truth_df(
+    gt_path: str | Path,
+    *,
+    ls_variant: str = "all",
+    unknown_policy: str = "exclude",
+) -> pd.DataFrame:
     """9개 이벤트의 LS/LQ GT를 하나의 평가용 DataFrame으로 만든다."""
+    if ls_variant not in LS_GT_VARIANTS:
+        raise ValueError(f"ls_variant는 {LS_GT_VARIANTS} 중 하나여야 합니다: {ls_variant}")
+    if unknown_policy not in LS_UNKNOWN_POLICIES:
+        raise ValueError(
+            f"unknown_policy는 {LS_UNKNOWN_POLICIES} 중 하나여야 합니다: {unknown_policy}"
+        )
     gt_path = Path(gt_path)
     if not gt_path.exists():
         raise FileNotFoundError(f"GT XLSX를 찾을 수 없습니다: {gt_path}")
@@ -899,7 +986,12 @@ def _prepare_eval_ground_truth_df(gt_path: str | Path) -> pd.DataFrame:
     frames: list[pd.DataFrame] = []
 
     for event_name in EVENTS:
-        ls_df = _prepare_ls_ground_truth(gt_path, event_name)
+        ls_df = _prepare_ls_ground_truth(
+            gt_path,
+            event_name,
+            ls_variant=ls_variant,
+            unknown_policy=unknown_policy,
+        )
         lq_df = _prepare_lq_ground_truth(gt_path, event_name)
 
         # 한쪽 GT 시트에 행 자체가 없으면 그 hazard는 0으로 확정하지 않고 평가 제외한다.
@@ -937,6 +1029,9 @@ def _prepare_eval_ground_truth_df(gt_path: str | Path) -> pd.DataFrame:
 def load_eval_ground_truth(
     gt_path: str | Path,
     model_batch: PilotABatch,
+    *,
+    ls_variant: str = "all",
+    unknown_policy: str = "exclude",
 ) -> EvalGroundTruthBatch:
     """
     9개 이벤트 GT를 전체 PilotABatch의 실제 모델 행과 정렬해 eval 입력을 만든다.
@@ -947,7 +1042,11 @@ def load_eval_ground_truth(
     LS/LQ 둘 중 하나라도 평가 가능한 모델 행만 EvalGroundTruthBatch에 포함한다.
     """
     model_batch.validate()
-    gt_df = _prepare_eval_ground_truth_df(gt_path)
+    gt_df = _prepare_eval_ground_truth_df(
+        gt_path,
+        ls_variant=ls_variant,
+        unknown_policy=unknown_policy,
+    )
 
     model_df = pd.DataFrame(
         {

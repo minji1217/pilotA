@@ -36,6 +36,10 @@ MERGE_KEYS = ["event_idx", "muni_code"]
 # 없으면 prior 관련 지표만 nan이 되고 나머지는 그대로 나온다.
 PRIOR_COLUMNS = {"ls": "prior_ls", "lq": "prior_lq"}
 
+# 모델 자신의 prior 점수. 원값 prior는 "USGS를 이겼나",
+# 이쪽은 "피해 데이터가 prior에 무엇을 보탰나"를 답한다.
+ZPRIOR_COLUMNS = {"ls": "zprior_ls", "lq": "zprior_lq"}
+
 
 @dataclass
 class EvalOutput:
@@ -58,6 +62,12 @@ class EvalOutput:
     auc_lq_wavg: float
     auc_prior_ls_wavg: float
     auc_prior_lq_wavg: float
+
+    # 모델 자신의 prior 단독 AUC. posterior가 이걸 넘어야 피해 데이터가 보탠 것이 있다.
+    auc_zprior_ls: float
+    auc_zprior_lq: float
+    auc_zprior_ls_wavg: float
+    auc_zprior_lq_wavg: float
 
     per_event: pd.DataFrame = field(repr=False)
     merged: pd.DataFrame = field(repr=False)
@@ -147,12 +157,14 @@ def _per_event_table(merged, ls_mask, lq_mask):
             "mse_ls": mse(ls_rows["ls_true"], ls_rows["p_ls"]),
             "auc_ls": auc(ls_rows["ls_true"], ls_rows["p_ls"]),
             "auc_prior_ls": _auc_of(ls_rows, "ls_true", PRIOR_COLUMNS["ls"]),
+            "auc_zprior_ls": _auc_of(ls_rows, "ls_true", ZPRIOR_COLUMNS["ls"]),
 
             "n_lq": len(lq_rows),
             "n_pos_lq": int(lq_rows["lq_true"].sum()) if len(lq_rows) else 0,
             "mse_lq": mse(lq_rows["lq_true"], lq_rows["p_lq"]),
             "auc_lq": auc(lq_rows["lq_true"], lq_rows["p_lq"]),
             "auc_prior_lq": _auc_of(lq_rows, "lq_true", PRIOR_COLUMNS["lq"]),
+            "auc_zprior_lq": _auc_of(lq_rows, "lq_true", ZPRIOR_COLUMNS["lq"]),
         })
         rows.append(row)
 
@@ -215,6 +227,11 @@ def evaluate(gt_df, pred_df):
         auc_lq_wavg=_weighted_mean(per_event["auc_lq"], per_event["n_lq"]),
         auc_prior_ls_wavg=_weighted_mean(per_event["auc_prior_ls"], per_event["n_ls"]),
         auc_prior_lq_wavg=_weighted_mean(per_event["auc_prior_lq"], per_event["n_lq"]),
+
+        auc_zprior_ls=_auc_of(ls_rows, "ls_true", ZPRIOR_COLUMNS["ls"]),
+        auc_zprior_lq=_auc_of(lq_rows, "lq_true", ZPRIOR_COLUMNS["lq"]),
+        auc_zprior_ls_wavg=_weighted_mean(per_event["auc_zprior_ls"], per_event["n_ls"]),
+        auc_zprior_lq_wavg=_weighted_mean(per_event["auc_zprior_lq"], per_event["n_lq"]),
 
         per_event=per_event,
         merged=merged,

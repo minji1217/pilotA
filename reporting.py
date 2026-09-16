@@ -105,6 +105,11 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
             spec += [
                 ("pri", "_c_raw", "c", [0, 1], ["LS", "LQ"], f"bounded[{pri.C_MIN},{pri.C_MAX}]"),
             ]
+        elif getattr(pri, "learn_c_lq", False):
+            # c_LS는 고정이라 아래 고정행으로 가고, 학습하는 것은 c_LQ 하나뿐이다.
+            spec += [
+                ("pri", "_c_lq_raw", "c", [1], ["LQ"], f"bounded[{pri.C_MIN},{pri.C_MAX}]"),
+            ]
     elif mode == "free":
         spec += [
             ("pri", "a", "a", [0, 1], ["LS", "LQ"], "none"),
@@ -132,8 +137,11 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
             val = F.softplus(raw)
         elif transform.startswith("bounded"):
             # prior의 a, b는 sigmoid 재파라미터화라 raw와 실제 값이 다르다.
+            c_val = getattr(pri, "c_value", None)
             val = {"_a_raw": pri.a_value, "_b_raw": pri.b_value,
-                   "_c_raw": getattr(pri, "c_value", None)}[pname].detach()
+                   "_c_raw": c_val,
+                   # c_LQ만 학습하는 모드는 값도 LQ 한 칸만 꺼낸다.
+                   "_c_lq_raw": None if c_val is None else c_val[1:]}[pname].detach()
         else:
             val = raw
 
@@ -164,14 +172,17 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
         # 학습하지 않는 a, b, c도 어떤 값이 쓰였는지 남겨야 재현이 된다.
         fixed = []
         if not pri.learn_ab:
-            fixed += [("a", pri.a_value, f"fixed(area={mode})"),
-                      ("b", pri.b_value, f"fixed(area={mode})")]
+            fixed += [("a", pri.a_value, f"fixed(area={mode})", ["LS", "LQ"]),
+                      ("b", pri.b_value, f"fixed(area={mode})", ["LS", "LQ"])]
         if mode == "tied":
-            fixed.append(("c", pri.c_value, "tied(c=a)"))
+            fixed.append(("c", pri.c_value, "tied(c=a)", ["LS", "LQ"]))
+        elif getattr(pri, "learn_c_lq", False):
+            # c_LQ는 학습 파라미터라 위에서 기록됐다. 여기서는 고정된 c_LS만 남긴다.
+            fixed.append(("c", pri.c_value, f"fixed(area={mode})", ["LS"]))
         elif mode != "free":
-            fixed.append(("c", pri.c_value, f"fixed(area={mode})"))
-        for group, vals, transform in fixed:
-            for i, lab in enumerate(["LS", "LQ"]):
+            fixed.append(("c", pri.c_value, f"fixed(area={mode})", ["LS", "LQ"]))
+        for group, vals, transform, labels in fixed:
+            for i, lab in enumerate(labels):
                 v = float(vals.detach()[i])
                 rows.append({
                     "module": "pri", "group": group, "param": group,

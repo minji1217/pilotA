@@ -1,0 +1,53 @@
+﻿항목,내용,학습 파라미터 수,실행 명령
+브랜치,followup3-loeo,해당 없음(설명 행),해당 없음(설명 행)
+커밋 해시,0c824047f9c18d2672ba2c2c26287edb60f05781,해당 없음(설명 행),해당 없음(설명 행)
+작업 트리 상태,"M score_loeo.py
+?? results/",해당 없음(설명 행),해당 없음(설명 행)
+실행 스크립트,run_loeo.sh (학습 30회) -> score_loeo.py (채점),해당 없음(설명 행),해당 없음(설명 행)
+공통 설정,3000 epoch / Adam lr 0.02 / weight_decay 0 / lam_gamma 10 / seed 0,해당 없음(설명 행),해당 없음(설명 행)
+학습 행 수,"418행 (모든 조건 동일, 시험 지진의 피해 건수도 NLL에 포함)",해당 없음(설명 행),해당 없음(설명 행)
+평가 행 수,"LS 125행 = 양성 105 / 음성 20. AUC 정의 지진 5개, 가중치 24·10·29·7·13 (합 83)",해당 없음(설명 행),해당 없음(설명 행)
+산지 변수,국세조사 mountain_ratio (통계 XLSX 헤더 4번째 줄). loader.py가 학습 418행 기준으로 표준화한 z_mtn을 그대로 사용,해당 없음(설명 행),해당 없음(설명 행)
+면적 자료,"USGS XLSX의 area_km2 (e-Stat B1101 총면적). 이벤트 시트별로 들어 있어 합병 전후 면적이 자동 구분된다. 419행 전부 존재, 결측·0 이하 없음",해당 없음(설명 행),해당 없음(설명 행)
+위도 처리,시정촌별 위도 자료가 없어 현청 소재지 위도(schema.PREFECTURE_CAPITAL_LAT)를 사용. 지시서 §2-2가 허용한 '지진별 대표 위도'보다 한 단계 세밀하다. 같은 현 안에서는 칸 넓이가 상수라 지진 안 순위에는 영향이 없다,해당 없음(설명 행),해당 없음(설명 행)
+칸 넓이 식,기존 면적 항 브랜치(followup3-area-avg-*)의 계산을 그대로 옮겼다. cell = (arcsec/3600 × 111.32 × cos(위도)) × (arcsec/3600 × 110.95). 지시서 §2-2의 0.23160² × cos(위도)와는 0.1% 미만 차이,해당 없음(설명 행),해당 없음(설명 행)
+k 확인값,"구마모토시(熊本市) 43100: 칸 0.045065 km², k = 8,661 (지시서 확인값 약 8,653). 아쓰마초(厚真町) 01581: 칸 0.039167 km², k = 10,330 (지시서 확인값 약 10,330)",해당 없음(설명 행),해당 없음(설명 행)
+c 적용 범위,기존 브랜치와 같이 log k를 LS(7.5″)와 LQ(15″) 양쪽에 c=1로 넣는다. 지시서 §2-1 B의 LQ 식도 같다,해당 없음(설명 행),해당 없음(설명 행)
+링크 함수,"주 조건은 지시서 §2-1 B 그대로 logit(pi) + log k. 기존 브랜치는 log(pi) + log k였고, 이것도 B0-log / B2-log로 함께 돌렸다",해당 없음(설명 행),해당 없음(설명 행)
+BCE 구현,"F.binary_cross_entropy_with_logits(z_LS[대상], y, reduction='sum'), 확률은 사후가 아니라 prior q_LS = sigmoid(z_LS)",해당 없음(설명 행),해당 없음(설명 행)
+기존 loss,손대지 않았다. loss = NLL(418행 합) + 10·(Σγ_LS² + Σγ_LQ²). 행 수로 나누지 않는다,해당 없음(설명 행),해당 없음(설명 행)
+옵션 끈 상태 확인,모든 새 옵션을 기본값으로 두고 돌린 A0의 predictions.csv / params.csv가 코드 수정 전 결과와 완전히 같다(diff 무차이),해당 없음(설명 행),해당 없음(설명 행)
+kappa optimizer 포함,"--mtn-prior를 켠 모든 실행에서 True로 출력되고, 아니면 RuntimeError로 멈춘다",해당 없음(설명 행),해당 없음(설명 행)
+NaN / 발산,"30회 실행 전부 loss_history에 NaN·Inf 없음, 최종 loss < 초기 loss",해당 없음(설명 행),해당 없음(설명 행)
+부트스트랩,"3000회, seed 0. 지진 안에서 양성·음성을 따로 복원추출하고 모든 조건이 같은 표본을 써서 짝지어 비교한다",해당 없음(설명 행),해당 없음(설명 행)
+총 실행 수,30회 (필수 14 + 선택 10 + 링크 민감도 6),해당 없음(설명 행),해당 없음(설명 행)
+실행 A0,시험 지진: 전체(가린 지진 없음),48,train.py --prior-mode bounded --lam-gamma 10 --b-min -2 --b-max 2 --seed 0 --epochs 3000 --out results/loeo/A0
+실행 A1,시험 지진: 전체(가린 지진 없음),49,train.py --prior-mode bounded --lam-gamma 10 --b-min -2 --b-max 2 --seed 0 --epochs 3000 --mtn-prior --out results/loeo/A1
+실행 A2,시험 지진: 2000 돗토리,49,train.py --prior-mode bounded --lam-gamma 10 --b-min -2 --b-max 2 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2000 돗토리 --out results/loeo/A2/2000 돗토리
+실행 A2,시험 지진: 2004 니가타현주에쓰,49,train.py --prior-mode bounded --lam-gamma 10 --b-min -2 --b-max 2 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2004 니가타현주에쓰 --out results/loeo/A2/2004 니가타현주에쓰
+실행 A2,시험 지진: 2016 구마모토,49,train.py --prior-mode bounded --lam-gamma 10 --b-min -2 --b-max 2 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2016 구마모토 --out results/loeo/A2/2016 구마모토
+실행 A2,시험 지진: 2018 오사카,49,train.py --prior-mode bounded --lam-gamma 10 --b-min -2 --b-max 2 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2018 오사카 --out results/loeo/A2/2018 오사카
+실행 A2,시험 지진: 2018 훗카이도,49,train.py --prior-mode bounded --lam-gamma 10 --b-min -2 --b-max 2 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2018 훗카이도 --out results/loeo/A2/2018 훗카이도
+실행 B0,시험 지진: 전체(가린 지진 없음),44,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --fix-b --out results/loeo/B0
+실행 B1,시험 지진: 전체(가린 지진 없음),46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --out results/loeo/B1
+실행 B2,시험 지진: 2000 돗토리,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2000 돗토리 --out results/loeo/B2/2000 돗토리
+실행 B2,시험 지진: 2004 니가타현주에쓰,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2004 니가타현주에쓰 --out results/loeo/B2/2004 니가타현주에쓰
+실행 B2,시험 지진: 2016 구마모토,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2016 구마모토 --out results/loeo/B2/2016 구마모토
+실행 B2,시험 지진: 2018 오사카,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2018 오사카 --out results/loeo/B2/2018 오사카
+실행 B2,시험 지진: 2018 훗카이도,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2018 훗카이도 --out results/loeo/B2/2018 훗카이도
+실행 B2-w1,시험 지진: 2000 돗토리,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 1 --test-event 2000 돗토리 --out results/loeo/B2-w1/2000 돗토리
+실행 B2-w1,시험 지진: 2004 니가타현주에쓰,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 1 --test-event 2004 니가타현주에쓰 --out results/loeo/B2-w1/2004 니가타현주에쓰
+실행 B2-w1,시험 지진: 2016 구마모토,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 1 --test-event 2016 구마모토 --out results/loeo/B2-w1/2016 구마모토
+실행 B2-w1,시험 지진: 2018 오사카,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 1 --test-event 2018 오사카 --out results/loeo/B2-w1/2018 오사카
+실행 B2-w1,시험 지진: 2018 훗카이도,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 1 --test-event 2018 훗카이도 --out results/loeo/B2-w1/2018 훗카이도
+실행 B2-w10,시험 지진: 2000 돗토리,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 10 --test-event 2000 돗토리 --out results/loeo/B2-w10/2000 돗토리
+실행 B2-w10,시험 지진: 2004 니가타현주에쓰,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 10 --test-event 2004 니가타현주에쓰 --out results/loeo/B2-w10/2004 니가타현주에쓰
+실행 B2-w10,시험 지진: 2016 구마모토,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 10 --test-event 2016 구마모토 --out results/loeo/B2-w10/2016 구마모토
+실행 B2-w10,시험 지진: 2018 오사카,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 10 --test-event 2018 오사카 --out results/loeo/B2-w10/2018 오사카
+실행 B2-w10,시험 지진: 2018 훗카이도,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 10 --test-event 2018 훗카이도 --out results/loeo/B2-w10/2018 훗카이도
+실행 B0-log,시험 지진: 전체(가린 지진 없음),44,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --fix-b --area-link log --out results/loeo/B0-log
+실행 B2-log,시험 지진: 2000 돗토리,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2000 돗토리 --area-link log --out results/loeo/B2-log/2000 돗토리
+실행 B2-log,시험 지진: 2004 니가타현주에쓰,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2004 니가타현주에쓰 --area-link log --out results/loeo/B2-log/2004 니가타현주에쓰
+실행 B2-log,시험 지진: 2016 구마모토,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2016 구마모토 --area-link log --out results/loeo/B2-log/2016 구마모토
+실행 B2-log,시험 지진: 2018 오사카,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2018 오사카 --area-link log --out results/loeo/B2-log/2018 오사카
+실행 B2-log,시험 지진: 2018 훗카이도,46,train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2018 훗카이도 --area-link log --out results/loeo/B2-log/2018 훗카이도

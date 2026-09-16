@@ -216,6 +216,15 @@ def verdict(cond_id: str, base_id: str, tables, boot_rows) -> str:
     return f"실패 ({cond_id} {post:.4f} ≤ {base_id} {base:.4f})"
 
 
+def round4(df: pd.DataFrame) -> pd.DataFrame:
+    """지시서 §1. 숫자는 소수 넷째 자리까지만 남긴다. 문자열이 섞인 칸도 안전하게 처리한다."""
+    out = df.copy()
+    for col in out.columns:
+        out[col] = out[col].map(lambda v: round(v, 4) if isinstance(v, (float, np.floating))
+                                else v)
+    return out
+
+
 # ------------------------------------------------------------------ 실행기록
 
 def run_log(fold_df: pd.DataFrame) -> pd.DataFrame:
@@ -423,6 +432,9 @@ def main():
     sheets = {"요약": summary, "회차별": fold_df, "이벤트별": event_df,
               "부트스트랩": boot_df, "재현": repro, "참고기준값": ref_df,
               "실행기록": run_log(fold_df)}
+
+    # 지시서 §1: 모든 숫자는 소수 넷째 자리까지 기록한다.
+    sheets = {name: round4(df) for name, df in sheets.items()}
 
     for name, df in sheets.items():
         df.to_csv(OUT / f"sheet_{name}.csv", index=False, encoding="utf-8-sig")

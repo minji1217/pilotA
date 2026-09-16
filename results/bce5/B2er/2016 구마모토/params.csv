@@ -1,0 +1,53 @@
+﻿module,group,param,idx,label,transform,raw_value,value
+reg,alpha_c,alpha_channel,0,사망,none,-19.757702813217225,-19.757702813217225
+reg,alpha_c,alpha_channel,1,중상,none,-15.880301092335362,-15.880301092335362
+reg,alpha_c,alpha_channel,2,경상,none,-12.976695980066678,-12.976695980066678
+reg,alpha_c,alpha_channel,3,전파,none,-12.839963342568993,-12.839963342568993
+reg,alpha_c,alpha_channel,4,반파,none,-12.612367898485774,-12.612367898485774
+reg,alpha_c,alpha_channel,5,일부파손,none,-9.384298378756812,-9.384298378756812
+reg,alpha_e,alpha_event_free,0,2004 니가타현주에쓰,fixed(reference),0.0,0.0
+reg,alpha_e,alpha_event_free,1,2007 니가타현주에쓰오키,none,-0.7484468238824318,-0.7484468238824318
+reg,alpha_e,alpha_event_free,2,2008 이와테미야기,none,-2.572898046031722,-2.572898046031722
+reg,alpha_e,alpha_event_free,3,2016 구마모토,none,-1.5056107719939273,-1.5056107719939273
+reg,alpha_e,alpha_event_free,4,2018 오사카,none,-2.8237907656314634,-2.8237907656314634
+reg,alpha_e,alpha_event_free,5,2018 훗카이도,none,-0.8143693646731615,-0.8143693646731615
+reg,alpha_e,alpha_event_free,6,2021 후쿠시마,none,-2.3721420182256776,-2.3721420182256776
+reg,alpha_e,alpha_event_free,7,2024 노토반도,none,-1.4073877545427587,-1.4073877545427587
+reg,alpha_e,alpha_event_free,8,2000 돗토리,none,-2.708412261668455,-2.708412261668455
+reg,beta_c,beta_pgv,0,사망,none,3.1948718025915785,3.1948718025915785
+reg,beta_c,beta_pgv,1,중상,none,2.3989793811733895,2.3989793811733895
+reg,beta_c,beta_pgv,2,경상,none,1.9563751256217203,1.9563751256217203
+reg,beta_c,beta_pgv,3,전파,none,2.3248537865776453,2.3248537865776453
+reg,beta_c,beta_pgv,4,반파,none,2.7469991909690883,2.7469991909690883
+reg,beta_c,beta_pgv,5,일부파손,none,2.6565590275245174,2.6565590275245174
+reg,delta_c,delta_wood,0,사망,none,0.15634779764351062,0.15634779764351062
+reg,delta_c,delta_wood,1,중상,none,0.2256462078128538,0.2256462078128538
+reg,delta_c,delta_wood,2,경상,none,-0.027795391996749595,-0.027795391996749595
+reg,delta_c,delta_wood,3,전파,none,0.8274160172474181,0.8274160172474181
+reg,delta_c,delta_wood,4,반파,none,0.5136090044411465,0.5136090044411465
+reg,delta_c,delta_wood,5,일부파손,none,0.17607710025517806,0.17607710025517806
+reg,gamma_LS,_gamma_ls_unconstrained,0,사망,softplus,-0.26469387936287053,0.5695326492050763
+reg,gamma_LS,_gamma_ls_unconstrained,1,중상,softplus,0.11033731203235049,0.7498368555568121
+reg,gamma_LS,_gamma_ls_unconstrained,2,경상,softplus,0.2480992130869608,0.82487128681821
+reg,gamma_LS,_gamma_ls_unconstrained,3,전파,softplus,-0.6043174597406807,0.4359602172800391
+reg,gamma_LS,_gamma_ls_unconstrained,4,반파,softplus,-0.023050233978261843,0.6816884762613927
+reg,gamma_LS,_gamma_ls_unconstrained,5,일부파손,softplus,-0.19792444141203816,0.5990737484748481
+reg,gamma_LQ,_gamma_lq_unconstrained,0,사망,softplus,-3.9715207405241797,0.018669390674411302
+reg,gamma_LQ,_gamma_lq_unconstrained,1,중상,softplus,-4.23941484231919,0.014313102114757913
+reg,gamma_LQ,_gamma_lq_unconstrained,2,경상,softplus,-2.4033783050100626,0.08655560415544626
+reg,gamma_LQ,_gamma_lq_unconstrained,3,전파,softplus,-2.7796622491695704,0.06020991416527471
+reg,gamma_LQ,_gamma_lq_unconstrained,4,반파,softplus,-2.143967415624942,0.11081569297637948
+reg,gamma_LQ,_gamma_lq_unconstrained,5,일부파손,softplus,-1.5893260094433315,0.18570175581155537
+lik,phi_c,_phi_unconstrained,0,사망,softplus,-0.6091448761409166,0.43425707924626317
+lik,phi_c,_phi_unconstrained,1,중상,softplus,-0.31689684663541035,0.5471995321334244
+lik,phi_c,_phi_unconstrained,2,경상,softplus,-0.4004659769024077,0.5128282762025592
+lik,phi_c,_phi_unconstrained,3,전파,softplus,-1.778322237914292,0.1560813743562082
+lik,phi_c,_phi_unconstrained,4,반파,softplus,-1.4236934330188216,0.2157747958001584
+lik,phi_c,_phi_unconstrained,5,일부파손,softplus,-0.5634640444272871,0.4505874705928047
+pri,a,a,0,LS,fixed(mode=area),1.0,1.0
+pri,a,a,1,LQ,fixed(mode=area),1.0,1.0
+pri,b,_b_raw,0,LS,"bounded[-2.0,4.0]",-1.8137352736492862,-1.1588762610662644
+pri,b,b,1,LQ,fixed(mode=area),0.0,0.0
+pri,c,c,0,LS,fixed(mode=area),1.0,1.0
+pri,c,c,1,LQ,fixed(mode=area),1.0,1.0
+pri,kappa,kappa,0,LS,none,-0.5140019730768687,-0.5140019730768687

@@ -74,11 +74,17 @@ def to_eval_gt(eval_gt: EvalGroundTruthBatch):
     })
 
 
-def build_bce_targets(eval_gt: EvalGroundTruthBatch, *, test_event=None):
+def build_bce_targets(eval_gt: EvalGroundTruthBatch, *, test_event=None,
+                      require_negatives=False):
     """지시서 §2-3의 BCE 대상 행을 고른다.
 
     대상: ls_flag가 0 또는 1인 평가 행(=ls_eval_mask) 중 시험 지진이 아닌 행.
     시험 지진의 피해 건수는 NLL에 그대로 들어간다. 가리는 것은 그 지진의 ls_flag뿐이다.
+
+    require_negatives=True면 음성이 하나도 없는 지진을 BCE에서 뺀다(사후 탐색).
+    지시서 §2-4는 그 4개 지진(2007·2008·2021·2024, 42행)을 매 회차 포함하라고 했는데,
+    전부 양성이라 판별 정보가 없고 'q를 올려라'는 수준 압력만 준다.
+    면적 항 사전은 이미 q가 0.94~0.99로 포화라 그 압력이 해로울 수 있다.
 
     출력: (batch 내 행 index [n], 정답 0/1 [n])
     """
@@ -89,6 +95,12 @@ def build_bce_targets(eval_gt: EvalGroundTruthBatch, *, test_event=None):
                 f"--test-event '{test_event}'는 EVENTS에 없습니다: {sorted(EVENT_TO_INDEX)}"
             )
         mask &= eval_gt.event_idx != EVENT_TO_INDEX[test_event]
+
+    if require_negatives:
+        for idx in eval_gt.event_idx.unique().tolist():
+            sel = eval_gt.ls_eval_mask & (eval_gt.event_idx == idx)
+            if sel.any() and int((eval_gt.gt_ls[sel] == 0).sum()) == 0:
+                mask &= eval_gt.event_idx != idx
 
     return eval_gt.model_row_idx[mask], eval_gt.gt_ls[mask]
 
@@ -249,6 +261,8 @@ if __name__ == "__main__":
                     help="base=기존 prior(A 계열) / area=면적 항 prior(B 계열, 지시서 §2-1 B)")
     ap.add_argument("--area-link", default="log", choices=["log", "logit"],
                     help="prior-family=area의 링크. log=주 조건(기본) / logit=지시서 §2-1 B 표기, 민감도")
+    ap.add_argument("--bce-require-negatives", action="store_true",
+                    help="음성이 없는 지진을 BCE에서 뺀다(사후 탐색). LS 라벨 5개 지진만 남는다")
     ap.add_argument("--center-logk", action="store_true",
                     help="log k에서 학습 418행 평균을 뺀다. b를 학습하는 채널에만 적용된다")
     ap.add_argument("--free-b-lq", action="store_true",
@@ -260,7 +274,8 @@ if __name__ == "__main__":
     ap.add_argument("--mtn-prior", action="store_true",
                     help="z_LS에 kappa * z_mtn(표준화 산지 비율)을 더한다")
     ap.add_argument("--ls-bce-weight", type=float, default=0.0,
-                    help="지시서 §2-3의 omega. 0(기본)이면 BCE 항이 loss에 들어가지 않는다")
+                    help="지시서 §2-3의 omega. 0(기본)이면 BCE 항이 loss에 들어가지 않는다. "
+                         "음수를 주면 418 ÷ 실제 BCE 행수로 재보정한다")
     ap.add_argument("--test-event", default=None,
                     help="이 지진의 ls_flag를 BCE 대상에서 뺀다(LOEO 시험 지진)")
     ap.add_argument("--out", default=None,
@@ -290,7 +305,12 @@ if __name__ == "__main__":
 
     # 지시서 §2-3의 BCE 대상 행을 고른다.
     # 학습 지진(= 시험 지진을 뺀 나머지)에서 ls_flag가 0 또는 1인 행이다. NA는 애초에 빠져 있다.
-    bce_idx, bce_y = build_bce_targets(eval_gt, test_event=args.test_event)
+    bce_idx, bce_y = build_bce_targets(eval_gt, test_event=args.test_event,
+                                       require_negatives=args.bce_require_negatives)
+    # ω를 BCE 행 수로 재보정한다. 지시서의 4.35 = 418 ÷ 96과 같은 방식이다.
+    if args.ls_bce_weight < 0:
+        args.ls_bce_weight = batch.batch_size / max(1, int(bce_idx.numel()))
+        print(f"omega 재보정: {batch.batch_size} ÷ {int(bce_idx.numel())} = {args.ls_bce_weight:.4f}")
     if args.test_event is not None:
         n_test = int((eval_gt.event_idx == EVENT_TO_INDEX[args.test_event]).logical_and(
             eval_gt.ls_eval_mask).sum())
@@ -353,6 +373,7 @@ if __name__ == "__main__":
         "omega": args.ls_bce_weight,
         "test_event": args.test_event or "",
         "n_bce_rows": int(bce_idx.numel()),
+        "bce_require_negatives": bool(args.bce_require_negatives),
         "n_params": sum(p.numel() for m in (reg, like, pri) for p in m.parameters()),
         "kappa": float(pri.kappa) if args.mtn_prior else "",
         "b_ls": float(pri.b_value if args.prior_family == "area" else pri.b_value[0]),

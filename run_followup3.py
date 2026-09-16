@@ -134,8 +134,21 @@ BONLY_RUNS = [
         note="같은 조건에 log k 평균 중심화. J와 같은 답에 가야 정상"),
 ]
 
-RUNS: list[Run] = [*FEEDBACK_RUNS, *NATMIX_RUNS, *AREA_RUNS, *SPLIT_RUNS, *BONLY_RUNS]
-GROUPS = ("feedback", "natmix", "area", "split", "bonly")
+# ④-4 b를 학습하는 조건에 규칙을 제대로 적용한 판 — 중심화 + b 범위 [-12, 12].
+# 기존 B/C/D는 b 범위가 [-2, 4]였고 bounded의 b_LQ가 -1.947로 하한에 붙어 있었다.
+# 중심화 자체는 결과를 바꾸지 않으므로(J/K로 확인) 실질 차이는 b 제약을 풀었는지다.
+CTR_RUNS = [
+    Run("L", "tied 중심화", "ctr", "followup3-area-avg-tied-ctr", needs_area=True,
+        note="B(tied)에 중심화 + b 범위 [-12,12]"),
+    Run("M", "bounded 중심화", "ctr", "followup3-area-avg-bounded-ctr", needs_area=True,
+        note="C(bounded)에 중심화 + b 범위 [-12,12]"),
+    Run("N", "free 중심화", "ctr", "followup3-area-avg-free-ctr", needs_area=True,
+        note="D(free)에 중심화 + b 범위 [-12,12]"),
+]
+
+RUNS: list[Run] = [*FEEDBACK_RUNS, *NATMIX_RUNS, *AREA_RUNS, *SPLIT_RUNS,
+                   *BONLY_RUNS, *CTR_RUNS]
+GROUPS = ("feedback", "natmix", "area", "split", "bonly", "ctr")
 
 
 def sh(cmd: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess:

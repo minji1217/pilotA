@@ -1,6 +1,15 @@
-# 입력 데이터와 실행 결과는 저장소에 넣지 않는다.
-raw/
-validation/
+# 입력 데이터는 저장소에 넣는다 — pilotA-minji는 private이다.
+#   raw/재난프로젝트_시정촌별_통계데이터.xlsx
+#   raw/재난프로젝트_시정촌별_USGS.xlsx
+#   raw/시정촌_면적.csv            (build_dataset.py --area-from-usgs 산출물)
+#   validation/LS_LF 데이터자료.xlsx
+#
+# raw/events/ 는 첫 자료 수신 때 받은 2000 돗토리 1개 이벤트분만 있는 미완성
+# 중간물이다. 이것으로 build_dataset.py를 돌리면 1개 이벤트짜리 워크북이 나와
+# 9개 이벤트 코드와 어긋나므로 넣지 않는다.
+raw/events/
+
+# 실행 결과는 다시 만들 수 있으므로 넣지 않는다.
 outputs/
 
 # run_followup3.py가 조건별로 띄우는 checkout

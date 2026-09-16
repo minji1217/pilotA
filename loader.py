@@ -777,64 +777,39 @@ def _apply_ls_type_variant(
     unknown_policy: str,
 ) -> pd.DataFrame:
     """
-    LS GT를 사면 종별로 좁힌다 (후속실험 3-③ 자연+혼재 재평가).
+    LS GT를 사면 종별로 다시 짠다 (후속실험 3-③ 자연+혼재 재평가).
 
-    ls_flag=1인 행만 종별 판정 대상이다. ls_flag=0은 애초에 붕괴가 없었으므로
-    음성 그대로 두고, ls_flag=NA는 이미 평가에서 빠져 있다.
+        자연 / 혼재            -> 1
+        그 밖 전부              -> 0   (인공 · 불명 · 빈칸 · ls_flag가 NA인 행까지)
+        평가 제외               -> 없음. 시트의 모든 행을 채점한다.
 
-        자연 / 혼재 -> 양성 유지
-        인공        -> 음성(0). 평가에서 빼지 않는다. 재평가의 질문이
-                       "자연 산사태가 났는가"이므로 인공사면에서만 무너진 곳의
-                       정답은 '아니오'다. 빼 버리면 정답이 음성인 사례를 잃어
-                       AUC가 부풀려진다.
-        불명        -> unknown_policy ("exclude" 평가 제외 / "negative" 0으로)
-        그 외 값    -> 오류. 조용히 넘기면 정의가 어긋난 채로 숫자가 나온다.
+    ③이 묻는 것은 "이 시정촌에서 **자연사면** 붕괴가 있었는가"다. USGS 산사태
+    사전모형이 설명하는 대상이 자연사면이기 때문이다. 그 질문에 대해 자연·혼재가
+    아닌 모든 행의 답은 "아니오"다 -- 인공사면만 무너졌든, 종별을 모르든,
+    애초에 산사태 기록이 없든 마찬가지다. 그래서 제외하는 행이 없다.
 
-    ls_flag이 없는 이벤트(2004 니가타 등)는 ls_area_ha>0으로 양성이 정해지는데,
-    실제 GT에서 ls_type은 정확히 그 행에만 붙어 있어 두 경로가 같게 동작한다.
+    기본 규칙(ls_flag의 NA를 평가에서 빼는 것)과 다른 이유는 질문이 다르기 때문이다.
+    기본 규칙은 "산사태가 있었는가"를 묻고 그 답을 모르는 행이 있지만,
+    ③은 "자연사면 붕괴가 확인되었는가"를 묻고 확인되지 않았으면 답이 정해진다.
+
+    unknown_policy는 남겨 두지만 이 규칙에서는 쓰이지 않는다(불명도 0이다).
+    ls_type 컬럼이 없는 이벤트는 그 시트 전체가 0이 된다.
     """
-    if GT_LS_TYPE_COLUMN not in df.columns:
-        raise ValueError(
-            f"[{sheet_name}] ls_variant='{ls_variant}'는 "
-            f"'{GT_LS_TYPE_COLUMN}' 컬럼을 요구합니다. "
-            f"이 컬럼이 없는 이벤트가 하나라도 있으면 이벤트마다 GT 정의가 달라지므로 "
-            f"평가를 진행하지 않습니다."
+    if GT_LS_TYPE_COLUMN in df.columns:
+        ls_type = (
+            df.loc[result.index, GT_LS_TYPE_COLUMN]
+            .astype("string")
+            .str.strip()
         )
+        is_natural = ls_type.isin(LS_TYPE_POSITIVE).fillna(False)
+    else:
+        # 종별 기록이 아예 없는 이벤트. 자연사면 붕괴가 확인된 행이 하나도 없다.
+        is_natural = pd.Series(False, index=result.index)
 
-    ls_type = (
-        df.loc[result.index, GT_LS_TYPE_COLUMN]
-        .astype("string")
-        .str.strip()
-    )
-    # 문자열 "NA"와 진짜 결측을 같게 본다. 둘 다 판정 대상이 아니라는 뜻이다.
-    ls_type = ls_type.where(~ls_type.isin(["", "NA", "NaN", "nan", "N/A"]), pd.NA)
-
-    positive = result["gt_ls"].eq(1) & result["ls_eval_mask"]
-
-    bad = positive & ~ls_type.isin(LS_TYPE_KNOWN)
-    if bad.any():
-        bad_values = sorted(
-            ls_type.loc[bad].fillna("<결측>").unique().tolist()
-        )
-        raise ValueError(
-            f"[{sheet_name}] 양성 행의 {GT_LS_TYPE_COLUMN}가 "
-            f"{sorted(LS_TYPE_KNOWN)} 중 하나가 아닙니다: {bad_values}"
-        )
-
-    # 인공사면에서만 무너진 곳은 '자연 산사태 없음'이므로 음성으로 내린다.
-    artificial = positive & ls_type.isin(LS_TYPE_NEGATIVE)
-    result.loc[artificial, "gt_ls"] = 0
-
-    unknown = positive & ls_type.eq(LS_TYPE_UNKNOWN)
-    if unknown_policy == "exclude":
-        # 자연인지 인공인지 모르는 행은 어느 쪽으로도 세지 않는다.
-        result.loc[unknown, "ls_eval_mask"] = False
-        result.loc[unknown, "gt_ls"] = 0
-    else:  # "negative"
-        result.loc[unknown, "gt_ls"] = 0
-
+    result = result.copy()
+    result["gt_ls"] = is_natural.astype("int64")
+    result["ls_eval_mask"] = True
     return result
-
 
 def _prepare_ls_ground_truth(
     gt_path: str | Path,
@@ -848,15 +823,23 @@ def _prepare_ls_ground_truth(
 
     확정 규칙:
     1. ls_flag 컬럼이 있으면 ls_flag를 우선 사용한다.
-       1 -> 1, 0 -> 0, NA -> 0 (평가 포함)
+       1 -> 1, 0 -> 0, NA -> 평가 제외
     2. ls_flag가 없으면 ls_area_ha를 사용한다.
-       >0 -> 1, 0 -> 0, NA -> 0 (평가 포함), 음수 -> 오류
+       >0 -> 1, 0 -> 0, NA -> 평가 제외, 음수 -> 오류
 
-    NA를 0으로 본다. 기록이 없다는 것은 그 시정촌에서 산사태가 확인되지 않았다는 뜻이고,
-    LQ의 jshis_flag가 이미 같은 규칙을 쓰고 있어 두 hazard의 정의를 맞춘다.
+    NA는 "없었다"가 아니라 "모른다"다. 정답지가 둘을 의도적으로 갈라 놓았다.
+    ls_flag=0 행의 근거는 "조사표에 행이 있고 산사태 칸만 비었다 = 조사 대상이었고 0"인 반면,
+    NA 행의 근거는 "조사의 유무 자체를 확인할 수 없어 NA"(2000 돗토리),
+    "항공사진 판독 범위 밖"(2007 니가타오키),
+    "신고 기반이라 산지 내부를 못 잡을 수 있어 NA"(2018 오사카, 2021 후쿠시마)다.
+    근거가 적힌 NA 149행 중 "확인 결과 없었다"고 말하는 행은 하나도 없다.
 
-    NA를 빼면 음성이 될 행이 대부분 사라져 평가가 양성 쪽으로 심하게 쏠린다.
-    실제로 GT 439행 중 304행이 NA였고, 그것을 빼니 LS 평가가 125행 / 양성률 84%가 됐다.
+    LQ가 jshis_flag에서만 NA->0을 쓰는 것도 같은 이치다. jshis는 전국을 덮는 위험도
+    지도라 빈칸이 곧 0이지만, lq_flag는 현장 기록이라 NA를 평가에서 뺀다.
+    ls_flag는 현장 기록 쪽이므로 지도용 규칙을 쓰면 안 된다.
+
+    그 결과 LS 평가는 125행 / 양성률 84%로 좁다. 음성이 9개 이벤트를 통틀어 20행뿐이라
+    AUC가 불안정하다는 것은 결과를 읽을 때 반드시 같이 말해야 한다.
     """
     df, sheet_name = _read_gt_sheet(gt_path, event_name, "LS")
     result = _prepare_gt_code_rows(df, sheet_name=sheet_name)
@@ -867,8 +850,8 @@ def _prepare_ls_ground_truth(
             sheet_name=sheet_name,
             column_name=GT_LS_FLAG_COLUMN,
         )
-        # NA는 "산사태가 확인되지 않음"이므로 0으로 세고 평가에 포함한다.
-        result["ls_eval_mask"] = True
+        # NA는 "모른다"이므로 평가에서 뺀다.
+        result["ls_eval_mask"] = raw.notna()
         result["gt_ls"] = raw.fillna(0.0).astype("int64")
 
     elif GT_LS_AREA_COLUMN in df.columns:
@@ -892,8 +875,8 @@ def _prepare_ls_ground_truth(
                 f"[{sheet_name}] ls_area_ha는 음수가 될 수 없습니다: {bad_codes}"
             )
 
-        # 면적이 비어 있는 것도 "확인되지 않음"이므로 0으로 세고 평가에 포함한다.
-        result["ls_eval_mask"] = True
+        # 면적이 비어 있는 것도 "모른다"이므로 평가에서 뺀다.
+        result["ls_eval_mask"] = ls_area.notna()
         result["gt_ls"] = (ls_area.fillna(0.0) > 0).astype("int64")
 
     else:

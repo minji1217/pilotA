@@ -843,9 +843,15 @@ def _prepare_ls_ground_truth(
 
     확정 규칙:
     1. ls_flag 컬럼이 있으면 ls_flag를 우선 사용한다.
-       1 -> 1, 0 -> 0, NA -> NA(평가 제외)
+       1 -> 1, 0 -> 0, NA -> 0 (평가 포함)
     2. ls_flag가 없으면 ls_area_ha를 사용한다.
-       >0 -> 1, 0 -> 0, NA -> NA(평가 제외), 음수 -> 오류
+       >0 -> 1, 0 -> 0, NA -> 0 (평가 포함), 음수 -> 오류
+
+    NA를 0으로 본다. 기록이 없다는 것은 그 시정촌에서 산사태가 확인되지 않았다는 뜻이고,
+    LQ의 jshis_flag가 이미 같은 규칙을 쓰고 있어 두 hazard의 정의를 맞춘다.
+
+    NA를 빼면 음성이 될 행이 대부분 사라져 평가가 양성 쪽으로 심하게 쏠린다.
+    실제로 GT 439행 중 304행이 NA였고, 그것을 빼니 LS 평가가 125행 / 양성률 84%가 됐다.
     """
     df, sheet_name = _read_gt_sheet(gt_path, event_name, "LS")
     result = _prepare_gt_code_rows(df, sheet_name=sheet_name)
@@ -856,7 +862,8 @@ def _prepare_ls_ground_truth(
             sheet_name=sheet_name,
             column_name=GT_LS_FLAG_COLUMN,
         )
-        result["ls_eval_mask"] = raw.notna()
+        # NA는 "산사태가 확인되지 않음"이므로 0으로 세고 평가에 포함한다.
+        result["ls_eval_mask"] = True
         result["gt_ls"] = raw.fillna(0.0).astype("int64")
 
     elif GT_LS_AREA_COLUMN in df.columns:
@@ -880,7 +887,8 @@ def _prepare_ls_ground_truth(
                 f"[{sheet_name}] ls_area_ha는 음수가 될 수 없습니다: {bad_codes}"
             )
 
-        result["ls_eval_mask"] = ls_area.notna()
+        # 면적이 비어 있는 것도 "확인되지 않음"이므로 0으로 세고 평가에 포함한다.
+        result["ls_eval_mask"] = True
         result["gt_ls"] = (ls_area.fillna(0.0) > 0).astype("int64")
 
     else:

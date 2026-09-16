@@ -101,6 +101,16 @@ class Prior(nn.Module):
             return self.B_MIN + (self.B_MAX - self.B_MIN) * torch.sigmoid(self._b_raw)
         return self.b
 
+    def z(self, pi_ls, pi_lq):
+        """z_ls, z_lq [B]. 평가에서 '자기 prior' 단독 점수로 쓴다.
+
+        a>0이고 b는 상수라 이 z의 순위는 pi와 같다. 그래도 AreaPrior와 같은
+        방식으로 기록해 두어야 두 계열의 결과 CSV를 같은 열로 비교할 수 있다.
+        """
+        a, b = self.a_value, self.b_value
+        return (a[0] * torch.logit(pi_ls, eps=EPS) + b[0],
+                a[1] * torch.logit(pi_lq, eps=EPS) + b[1])
+
     def forward(self,pi_ls,pi_lq):
         x_ls=torch.logit(pi_ls,eps=EPS)
         x_lq=torch.logit(pi_lq,eps=EPS)

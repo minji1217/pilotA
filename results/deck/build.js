@@ -251,26 +251,39 @@ tbl(s,[
  {x:0.7,y:4.7,w:11.95,colW:[1.5,1.5,2.2,1.4,5.35],rowH:0.335,fontSize:10.5,align:"center"});
 s.addNotes("B2−B1이 P=1.0인 것이 중요하다. 감독을 붙이면 κ가 폭주하는 것은 막아준다. 다만 그래봐야 아무것도 안 넣은 B0을 못 넘는다.");
 
-/* ───────────────────────── 9. 성분 분해 ───────────────────────── */
+/* ─────────── 9. 성능은 사전이 다 만든다 + 성분 분해 ─────────── */
 s=pres.addSlide(); s.background={color:WHITE};
-title(s,"왜 그런가 ① 면적 항이 산지 정보를 이미 담고 있다","회귀를 거치지 않은 prior 점수만으로 잰 가중 AUC");
+title(s,"왜 그런가 ① 성능은 사전확률이 거의 다 만든다","왼쪽은 회귀를 거치지 않은 사전 점수, 오른쪽은 그 사전이 회귀·우도를 지나며 얼마나 나아지는지");
 s.addChart(pres.ChartType.bar,[
- {name:"LS",labels:["USGS π 단독","시정촌 면적 log k 단독","산지 비율 단독","π + 면적 항"],values:[0.7969,0.8214,0.8060,0.8400]},
- {name:"LQ",labels:["USGS π 단독","시정촌 면적 log k 단독","산지 비율 단독","π + 면적 항"],values:[0.7154,0.5470,0.4287,0.7698]}],
- Object.assign({},chartFrame,{x:0.7,y:1.76,w:7.5,h:3.5,barDir:"col",barGapWidthPct:55,
- chartColors:[TERRA,SAGE],showLegend:true,legendPos:"t",legendColor:MUTED,legendFontSize:11,
- valAxisMinVal:0.35,valAxisMaxVal:0.90,valAxisMajorUnit:0.1,dataLabelPosition:"outEnd",dataLabelFontSize:9.5}));
-card(s,8.5,1.76,4.15,3.5);
-s.addText("두 가지가 보인다",{x:8.8,y:1.98,w:3.6,h:0.3,fontSize:12.5,bold:true,color:INK,fontFace:H,isTextBox:true,margin:0});
-s.addText("① LS에서는 시정촌 면적만으로도 0.8214가 나온다. USGS 확률값(0.7969)보다 높다.\n\n② 그런데 LQ에서는 면적 단독이 0.5470으로 우연 수준이다. 그런데도 π와 더하면 0.7154 → 0.7698로 오른다.",
-  {x:8.8,y:2.38,w:3.6,h:1.6,fontSize:11,color:MUTED,lineSpacing:15,fontFace:B,isTextBox:true,margin:0});
-s.addText("면적이 라벨을 직접 켜는 것이 아니라, λ = π × k 라는 유도식이 실제로 작동한다는 뜻이다.",
-  {x:8.8,y:4.2,w:3.6,h:0.85,fontSize:11,bold:true,color:TERRA,lineSpacing:15,fontFace:B,isTextBox:true,margin:0});
-s.addShape(pres.ShapeType.roundRect,{x:0.7,y:5.42,w:11.95,h:1.25,rectRadius:0.09,fill:{color:DARK},line:{color:DARK,width:0}});
-s.addText("산지 비율과 시정촌 면적의 상관 = 0.53",{x:1.0,y:5.6,w:5.4,h:0.34,fontSize:14,bold:true,color:TERRA,fontFace:H,isTextBox:true,margin:0});
-s.addText("두 변수가 같은 것(산이 얼마나 넓게 있는가)을 다른 방식으로 재고 있다. 실제로 A2가 정답을 배워 도달한 prior(0.8341)가 면적 항이 구조만으로 얻은 prior(0.8400)와 거의 같은 자리다 — 서로 다른 길로 같은 정보에 닿았다.",
-  {x:1.0,y:6.0,w:11.35,h:0.55,fontSize:11.5,color:"CFC4BC",lineSpacing:15,fontFace:B,isTextBox:true,margin:0});
-s.addNotes("LQ에서 면적 단독이 무력하다는 점이 중요하다. 'LS 결과는 시정촌이 크면 라벨이 켜지는 아티팩트 아닌가'라는 의심에 대한 반증이다.");
+ {name:"LS",labels:["USGS π̄ 단독","시정촌 면적 log k 단독","산지 비율 단독","π̄ + 면적 항"],values:[0.7969,0.8214,0.8060,0.8400]},
+ {name:"LQ",labels:["USGS π̄ 단독","시정촌 면적 log k 단독","산지 비율 단독","π̄ + 면적 항"],values:[0.7154,0.5470,0.4287,0.7698]}],
+ Object.assign({},chartFrame,{x:0.7,y:1.72,w:6.35,h:3.35,barDir:"col",barGapWidthPct:55,
+ chartColors:[TERRA,SAGE],showLegend:true,legendPos:"t",legendColor:MUTED,legendFontSize:10.5,
+ valAxisMinVal:0.35,valAxisMaxVal:0.90,valAxisMajorUnit:0.1,dataLabelPosition:"outEnd",
+ dataLabelFontSize:9,catAxisLabelFontSize:9.5}));
+s.addText("LQ에서는 면적 단독이 0.5470으로 우연 수준인데도 π̄와 더하면 0.7154 → 0.7698로 오른다. 면적이 라벨을 직접 켜는 게 아니라 λ = π̄ × k 가 작동한다는 뜻이다.",
+  {x:0.7,y:5.14,w:6.35,h:0.62,fontSize:10.5,color:MUTED,lineSpacing:14,fontFace:B,isTextBox:true,margin:0});
+
+s.addText("LS 사전 → 사후 (가중 AUC)",{x:7.25,y:1.72,w:5.4,h:0.3,fontSize:12,bold:true,color:INK,fontFace:B,isTextBox:true,margin:0});
+tbl(s,[
+ [hdr("조건"),hdr("사전 (83)"),hdr("사후 (83)"),hdr("사전 (66)"),hdr("사후 (66)")],
+ ["A0","0.7969",{text:"0.7222",options:{color:TERRA,bold:true}},"0.7635",{text:"0.7286",options:{color:TERRA}}],
+ ["A1","0.7986",{text:"0.7479",options:{color:TERRA}},"0.7562","0.7704"],
+ ["A2","0.8341",{text:"0.8039",options:{color:TERRA}},"0.8103","0.8018"],
+ [{text:"B0",options:{bold:true}},{text:"0.8400",options:{bold:true}},{text:"0.8550",options:{bold:true,color:SAGE}},
+  {text:"0.8177",options:{bold:true}},{text:"0.8177",options:{bold:true}}],
+ ["B1","0.7660",{text:"0.7285",options:{color:TERRA}},"0.7554","0.7449"],
+ ["B2","0.8220",{text:"0.8507",options:{color:SAGE}},"0.7951","0.8122"]],
+ {x:7.25,y:2.12,w:5.4,colW:[0.8,1.18,1.18,1.12,1.12],rowH:0.335,fontSize:10.5,align:"center"});
+s.addText("83 = AUC가 정의되는 5개 지진 전부.  66 = 그중 음성이 3개 이상인 세 개(돗토리 9 · 구마모토 3 · 훗카이도 4).\n나머지 둘은 음성이 2개뿐이라 사후가 만점을 받기 쉽다.",
+  {x:7.25,y:4.56,w:5.4,h:0.62,fontSize:10,color:MUTED,lineSpacing:13,fontFace:B,isTextBox:true,margin:0});
+
+s.addShape(pres.ShapeType.roundRect,{x:0.7,y:5.88,w:11.95,h:1.0,rectRadius:0.09,fill:{color:DARK},line:{color:DARK,width:0}});
+s.addText("① 면적 항이 산지 정보를 이미 담고 있다 — corr(log k, 산지 비율) = 0.53. A2가 정답으로 배워 도달한 사전(0.8341)이 면적 항이 구조만으로 얻은 사전(0.8400)과 같은 자리다.",
+  {x:1.0,y:6.02,w:11.35,h:0.34,fontSize:11,color:"CFC4BC",fontFace:B,isTextBox:true,margin:0});
+s.addText("② 우도는 LS 순위에 기여하지 않는다 — B0은 음성이 충분한 세 지진에서 사전 = 사후(둘 다 0.8177, 차이 0.0000)이고, A 계열에서는 오히려 깎는다(A0 −0.075).",
+  {x:1.0,y:6.42,w:11.35,h:0.34,fontSize:11,bold:true,color:TERRA,fontFace:B,isTextBox:true,margin:0});
+s.addNotes("B0의 사후 이득 +0.015는 전부 2004 니가타(양성 8/음성 2, 16쌍)에서 0.8750 -> 1.0000 한 곳에서 나온다. 나머지 네 지진은 사전과 사후의 AUC가 완전히 같다. 즉 지금 LS 순위 성능은 엑셀 두 열(LS_prior(평균), area_km2)이 거의 다 만들고 있다.");
 
 /* ───────────────────────── 10. B2 실패 이유 ───────────────────────── */
 s=pres.addSlide(); s.background={color:WHITE};
@@ -418,7 +431,7 @@ s.addText("한계",{x:0.7,y:1.72,w:5.85,h:0.3,fontSize:13,bold:true,color:TERRA,
   s.addText(d,{x:1.3,y:y+0.42,w:5.0,h:0.5,fontSize:10.5,color:MUTED,lineSpacing:13,fontFace:B,isTextBox:true,margin:0});
 });
 s.addText("다음 단계",{x:6.8,y:1.72,w:5.85,h:0.3,fontSize:13,bold:true,color:SAGE,fontFace:B,isTextBox:true,margin:0});
-[["병목은 prior가 아니라 우도다","A0은 prior 0.7969 → 사후 0.7222로 깎인다. 어느 피해 채널이 LS 순위를 망치는지 채널별로 끄고 재본다."],
+[["병목은 사전이 아니라 우도다","B0은 음성 충분한 세 지진에서 사전=사후(0.8177)이고 A0은 사전을 0.075 깎는다. 어느 피해 채널이 LS 순위를 망치는지 채널별로 끄고 재본다."],
  ["b_LQ 건을 정식 조건으로 사전등록","이번에는 사후 탐색으로만 확인했다. 조건을 미리 고정하고 다시 돌린다."],
  ["B에서 κ를 쓰려면 부호 제약(κ ≥ 0)","강제 κ=+1이 prior를 0.8539로 올린다. 다만 결과를 보고 나온 가설이라 별도 사전등록이 필요하다."],
  ["감독 대상을 산지 말고 다른 변수로","면적 항이 아직 모르는 정보 — 경사도, 지질, 강우 — 쪽이어야 한다."]]

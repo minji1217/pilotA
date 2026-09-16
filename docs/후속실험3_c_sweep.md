@@ -93,9 +93,9 @@ LQ는 반대로 전 구간에서 보탠양이 양수다(+0.010 ~ +0.034).
 
 | 파일 | 내용 |
 |---|---|
-| `docs/후속실험3_c스윕_8x8.csv` | 거친 격자 64점 |
-| `docs/후속실험3_c스윕_미세6x6.csv` | 미세 격자 36점 |
-| `docs/그림/후속실험3_c스윕.png` · `.html` | 그래프 |
+| `docs/후속실험3_c_sweep_8x8.csv` | 거친 격자 64점 |
+| `docs/후속실험3_c_sweep_fine6x6.csv` | 미세 격자 36점 |
+| `docs/그림/후속실험3_c_sweep.png` · `.html` | 그래프 |
 | `followup3-area-sweep` 브랜치 | `prior.py`의 grid 모드, `tools/sweep_c.py` |
 
 재현:

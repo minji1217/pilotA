@@ -1,0 +1,10 @@
+# 입력 데이터와 실행 결과는 저장소에 넣지 않는다.
+raw/
+validation/
+outputs/
+
+# run_followup3.py가 조건별로 띄우는 checkout
+.followup3-worktrees/
+
+__pycache__/
+*.pyc

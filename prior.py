@@ -165,15 +165,39 @@ class AreaPrior(nn.Module):
     "lq-c075"   : c_LS=1, c_LQ=0.75 고정 (편향이 0을 지나는 지점의 선형 추정)
     "lq-c-free" : c_LS=1 고정, c_LQ만 학습 [c_min, c_max]
 
+    b만 학습하는 모드
+    ----
+    눈금을 고치는 올바른 손잡이는 c가 아니라 b다. b는 z에 더해지는 상수라
+    hazard 안에서 순위를 전혀 바꾸지 않는다. 즉 fixed의 prior 순위(AUC)를 그대로
+    두고 확률 수준만 옮길 수 있다. c를 건드리면 순위까지 같이 움직인다.
+
+    "b-only"     : a=1, c=1 고정, b만 학습. log k는 원값 그대로.
+                   b=0 초기값이 곧 유도식 z = log(p̄·k)라 출발점이 의미를 갖는다.
+    "b-only-ctr" : 같은 조건에 log k를 평균 중심화한다.
+
+    중심화는 z = a·log p̄ + b + c·(log k − m) = a·log p̄ + (b − c·m) + c·log k 이므로
+    b가 흡수하는 순수 재매개변수화다. b를 학습하는 한 최적해는 같아야 하고,
+    b의 해석(평균 크기 시정촌에서의 log-odds)과 b·c의 상관만 달라진다.
+    두 모드를 함께 돌리는 것은 실제로 같은 답에 도달하는지 확인하기 위해서다.
+    b=0으로 고정된 모드(fixed 등)에서는 재매개변수화가 아니라 다른 모형이 되므로
+    중심화하지 않는다 — 안 뺀 z = log λ 가 유도식 그 자체이기 때문이다.
+
     학습하는 값은 기존 Prior처럼 sigmoid 재파라미터화로 범위를 지킨다.
     a ∈ [0.5, 2], b ∈ [b_min, b_max](기본 [-2, 4]), c ∈ [c_min, c_max](기본 [0, 2]).
     초기값은 a=1, b=0, c=1이다.
     """
 
+    # "-ctr" 접미사는 log k를 평균 중심화한다는 뜻이고, 앞부분이 실제 모드다.
+    # 중심화는 b가 흡수하는 재매개변수화라 b를 학습하는 모드에서만 의미가 있다.
+    # b=0으로 고정된 모드(fixed / a1-* / lq-*)는 중심화하면 유도식이 깨지므로 넣지 않는다.
     MODES = ("fixed", "tied", "bounded", "free", "a1-c05", "a1-c2",
-             "lq-c05", "lq-c075", "lq-c-free")
+             "lq-c05", "lq-c075", "lq-c-free", "b-only",
+             "tied-ctr", "bounded-ctr", "free-ctr", "b-only-ctr")
     # c를 학습하지 않는 모드의 c 값. tied는 c=a라서 여기 없다.
-    FIXED_C = {"fixed": 1.0, "bounded": 1.0, "a1-c05": 0.5, "a1-c2": 2.0}
+    FIXED_C = {"fixed": 1.0, "bounded": 1.0, "a1-c05": 0.5, "a1-c2": 2.0,
+               "b-only": 1.0, "b-only-ctr": 1.0}
+
+    CENTER_SUFFIX = "-ctr"
 
     # c를 hazard별로 두는 모드. (c_LS, c_LQ)이고 "learn"이면 그쪽만 학습한다.
     # LS는 유도식 c=1을 건드리지 않는다 - 실측 편향이 +0.006으로 이미 맞기 때문이다.
@@ -196,8 +220,29 @@ class AreaPrior(nn.Module):
         self.B_MIN, self.B_MAX = b_min, b_max
         self.C_MIN, self.C_MAX = c_min, c_max
 
-        self.learn_ab = mode in ("tied", "bounded", "free")
-        if self.learn_ab:
+        # 실제 동작을 정하는 것은 "-ctr" 접미사를 뗀 이름이다.
+        named_ctr = mode.endswith(self.CENTER_SUFFIX)
+        self.base_mode = mode[: -len(self.CENTER_SUFFIX)] if named_ctr else mode
+        self.register_buffer("log_k_center", torch.zeros(2, dtype=DTYPE))
+
+        self.learn_ab = self.base_mode in ("tied", "bounded", "free")
+        self.learn_b_only = self.base_mode == "b-only"
+
+        # 중심화는 이름이 아니라 규칙으로 정한다.
+        # b를 학습하면 중심화가 b에 흡수되는 재매개변수화라 언제나 적용할 수 있고,
+        # b가 log k 크기(평균 +8.0 LS / +6.7 LQ)를 상대해야 하는 문제도 사라진다.
+        # b=0으로 고정된 모드는 중심화하면 유도식 z = log(p̄·k) 가 깨지므로 하지 않는다.
+        self.center_log_k = self.learn_ab or self.learn_b_only
+        if named_ctr and not self.center_log_k:
+            raise ValueError(
+                f"중심화는 b를 학습하는 모드에서만 의미가 있습니다: {mode}"
+            )
+        if self.learn_b_only:
+            # a와 c는 유도식에 고정하고 b만 학습한다.
+            self.register_buffer("a", torch.ones(2, dtype=DTYPE))
+            b_init = _inverse_sigmoid((0.0 - b_min) / (b_max - b_min))
+            self._b_raw = nn.Parameter(torch.full((2,), b_init, dtype=DTYPE))
+        elif self.learn_ab:
             a_init = _inverse_sigmoid((1.0 - self.A_MIN) / (self.A_MAX - self.A_MIN))
             b_init = _inverse_sigmoid((0.0 - b_min) / (b_max - b_min))
             self._a_raw = nn.Parameter(torch.full((2,), a_init, dtype=DTYPE))
@@ -208,11 +253,11 @@ class AreaPrior(nn.Module):
             self.register_buffer("b", torch.zeros(2, dtype=DTYPE))
 
         self.learn_c_lq = False
-        if mode == "free":
+        if self.base_mode == "free":
             c_init = _inverse_sigmoid((1.0 - c_min) / (c_max - c_min))
             self._c_raw = nn.Parameter(torch.full((2,), c_init, dtype=DTYPE))
-        elif mode in self.SPLIT_C:
-            c_ls, c_lq = self.SPLIT_C[mode]
+        elif self.base_mode in self.SPLIT_C:
+            c_ls, c_lq = self.SPLIT_C[self.base_mode]
             self.learn_c_lq = c_lq == "learn"
             # c_LQ를 학습하는 경우에도 buffer에는 초기값 1.0을 넣어 두고 c_value에서 덮는다.
             self.register_buffer(
@@ -221,8 +266,10 @@ class AreaPrior(nn.Module):
             if self.learn_c_lq:
                 c_init = _inverse_sigmoid((1.0 - c_min) / (c_max - c_min))
                 self._c_lq_raw = nn.Parameter(torch.full((1,), c_init, dtype=DTYPE))
-        elif mode in self.FIXED_C:
-            self.register_buffer("c", torch.full((2,), self.FIXED_C[mode], dtype=DTYPE))
+        elif self.base_mode in self.FIXED_C:
+            self.register_buffer(
+                "c", torch.full((2,), self.FIXED_C[self.base_mode], dtype=DTYPE)
+            )
 
     @staticmethod
     def _scale(raw: Tensor, lo: float, hi: float) -> Tensor:
@@ -236,14 +283,28 @@ class AreaPrior(nn.Module):
     @property
     def b_value(self) -> Tensor:
         """실제 식에 들어가는 b [2]. LS=0, LQ=1."""
-        return self._scale(self._b_raw, self.B_MIN, self.B_MAX) if self.learn_ab else self.b
+        if self.learn_ab or self.learn_b_only:
+            return self._scale(self._b_raw, self.B_MIN, self.B_MAX)
+        return self.b
+
+    def fit_center(self, log_k_ls: Tensor, log_k_lq: Tensor) -> "AreaPrior":
+        """중심화 모드면 log k의 평균을 기억해 둔다. 아니면 0 그대로다.
+
+        학습 전 batch 전체를 보고 한 번만 정한다. 학습 파라미터가 아니다.
+        """
+        if self.center_log_k:
+            with torch.no_grad():
+                self.log_k_center.copy_(
+                    torch.stack([log_k_ls.mean(), log_k_lq.mean()]).to(self.log_k_center)
+                )
+        return self
 
     @property
     def c_value(self) -> Tensor:
         """실제 식에 들어가는 c [2]. LS=0, LQ=1."""
-        if self.mode == "tied":
+        if self.base_mode == "tied":
             return self.a_value
-        if self.mode == "free":
+        if self.base_mode == "free":
             return self._scale(self._c_raw, self.C_MIN, self.C_MAX)
         if self.learn_c_lq:
             # c_LS는 유도식 그대로 고정하고 c_LQ만 학습한다.
@@ -257,8 +318,9 @@ class AreaPrior(nn.Module):
         x_ls = torch.log(pi_ls.clamp_min(EPS))
         x_lq = torch.log(pi_lq.clamp_min(EPS))
         a, b, c = self.a_value, self.b_value, self.c_value
-        z_ls = a[0] * x_ls + b[0] + c[0] * log_k_ls
-        z_lq = a[1] * x_lq + b[1] + c[1] * log_k_lq
+        # 중심화 모드가 아니면 log_k_center가 0이라 원값 그대로다.
+        z_ls = a[0] * x_ls + b[0] + c[0] * (log_k_ls - self.log_k_center[0])
+        z_lq = a[1] * x_lq + b[1] + c[1] * (log_k_lq - self.log_k_center[1])
         return z_ls, z_lq
 
     def forward(self, pi_ls, pi_lq, log_k_ls, log_k_lq):

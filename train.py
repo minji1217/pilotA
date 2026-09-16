@@ -121,10 +121,19 @@ def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_
     if area_mode is None:
         pri=Prior(mode=prior_mode,b_bound=b_bound,b_min=b_min,b_max=b_max)
     else:
+        # b를 학습하는 모드는 b 범위를 넓게 준다.
+        # 중심화를 하면 b가 log k 평균(+8.0 LS / +6.7 LQ)만큼 이동한 자리에서 최적이 되고,
+        # 중심화를 안 해도 기존 [-2, 4]로는 좁았다(bounded의 b_LQ가 -1.947로 하한에 붙었다).
+        # 넓게 두고 어디서 멈추는지 보는 편이 낫다.
+        _base = area_mode[:-4] if area_mode.endswith("-ctr") else area_mode
+        wide = _base in ("tied", "bounded", "free", "b-only")
+        default_b = (-20.0, 20.0) if wide else (-2.0, 4.0)
         pri=AreaPrior(mode=area_mode,
-                      b_min=-2.0 if b_min is None else b_min,
-                      b_max=4.0 if b_max is None else b_max,
+                      b_min=default_b[0] if b_min is None else b_min,
+                      b_max=default_b[1] if b_max is None else b_max,
                       c_min=c_min,c_max=c_max)
+        # 중심화 모드면 batch 전체의 log k 평균을 한 번 재 둔다.
+        pri.fit_center(batch.log_k_ls, batch.log_k_lq)
 
     history = []
     reg.initialize_from_batch(batch)

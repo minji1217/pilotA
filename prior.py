@@ -220,15 +220,20 @@ class AreaPrior(nn.Module):
         self.B_MIN, self.B_MAX = b_min, b_max
         self.C_MIN, self.C_MAX = c_min, c_max
 
-        # log k 중심화. 기본은 0이라 아무것도 빼지 않는다.
-        self.center_log_k = mode.endswith(self.CENTER_SUFFIX)
-        # 실제 동작을 정하는 것은 접미사를 뗀 이름이다.
-        self.base_mode = mode[: -len(self.CENTER_SUFFIX)] if self.center_log_k else mode
+        # 실제 동작을 정하는 것은 "-ctr" 접미사를 뗀 이름이다.
+        named_ctr = mode.endswith(self.CENTER_SUFFIX)
+        self.base_mode = mode[: -len(self.CENTER_SUFFIX)] if named_ctr else mode
         self.register_buffer("log_k_center", torch.zeros(2, dtype=DTYPE))
 
         self.learn_ab = self.base_mode in ("tied", "bounded", "free")
         self.learn_b_only = self.base_mode == "b-only"
-        if self.center_log_k and not (self.learn_ab or self.learn_b_only):
+
+        # 중심화는 이름이 아니라 규칙으로 정한다.
+        # b를 학습하면 중심화가 b에 흡수되는 재매개변수화라 언제나 적용할 수 있고,
+        # b가 log k 크기(평균 +8.0 LS / +6.7 LQ)를 상대해야 하는 문제도 사라진다.
+        # b=0으로 고정된 모드는 중심화하면 유도식 z = log(p̄·k) 가 깨지므로 하지 않는다.
+        self.center_log_k = self.learn_ab or self.learn_b_only
+        if named_ctr and not self.center_log_k:
             raise ValueError(
                 f"중심화는 b를 학습하는 모드에서만 의미가 있습니다: {mode}"
             )

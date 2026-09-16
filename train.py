@@ -20,7 +20,7 @@ GT_PATH = "validation/LS_LF 데이터자료.xlsx"
 
 # 후속실험 3: 이 브랜치의 prior 조건. followup3-area-avg-<모드> 브랜치마다 이 값만 다르다.
 # z = a·log p̄ + b + c·log k (prior.AreaPrior). None이면 기존 Prior(a·logit(pi)+b)를 쓴다.
-DEFAULT_AREA_MODE = "lq-c-free"
+DEFAULT_AREA_MODE = "b-only-ctr"
 
 
 def save_predictions(batch, p_ls, p_lq, path="outputs/predictions.csv", extra=None):
@@ -108,10 +108,16 @@ def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_
     if area_mode is None:
         pri=Prior(mode=prior_mode,b_bound=b_bound,b_min=b_min,b_max=b_max)
     else:
+        # b만 학습하는 모드는 b가 log k 크기(평균 +8.0 LS / +6.7 LQ)를 상대해야 해서
+        # 기존 [-2, 4]로는 상한에 붙는다. 실제로 bounded의 b_LQ가 -1.947로 하한에 붙었다.
+        wide = area_mode in ("b-only", "b-only-ctr")
+        default_b = (-12.0, 12.0) if wide else (-2.0, 4.0)
         pri=AreaPrior(mode=area_mode,
-                      b_min=-2.0 if b_min is None else b_min,
-                      b_max=4.0 if b_max is None else b_max,
+                      b_min=default_b[0] if b_min is None else b_min,
+                      b_max=default_b[1] if b_max is None else b_max,
                       c_min=c_min,c_max=c_max)
+        # 중심화 모드면 batch 전체의 log k 평균을 한 번 재 둔다.
+        pri.fit_center(batch.log_k_ls, batch.log_k_lq)
 
     history = []
     reg.initialize_from_batch(batch)

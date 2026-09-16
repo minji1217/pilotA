@@ -122,14 +122,67 @@ def build(events: list[str], event_dir: Path) -> None:
         print(f"! {missing}개 이벤트의 usgs.csv에 {AREA_COLUMN}가 없어 면적이 비었습니다.")
 
 
+def area_from_usgs_workbook(usgs_path: Path) -> int:
+    """
+    이미 만들어진 USGS 워크북에서 면적을 뽑아 raw/시정촌_면적.csv를 만든다.
+
+    면적이 별도 파일이 아니라 USGS 표 안에 area_km2로 같이 들어오는 경우가 있다.
+    이벤트 시점마다 합병 전후 면적이 다르므로 (이벤트, 시정촌코드)로 저장한다.
+    """
+    xl = pd.ExcelFile(usgs_path)
+    frames = []
+    for sheet in xl.sheet_names:
+        raw = pd.read_excel(usgs_path, sheet_name=sheet, header=None)
+        header = next(
+            (i for i, row in raw.iterrows()
+             if {MUNICIPALITY_CODE_COLUMN, AREA_COLUMN}
+             <= {str(v).strip() for v in row.tolist() if pd.notna(v)}),
+            None,
+        )
+        if header is None:
+            print(f"! [{sheet}] {AREA_COLUMN} 컬럼을 찾지 못했습니다.")
+            continue
+
+        df = pd.read_excel(usgs_path, sheet_name=sheet, header=header,
+                           dtype={MUNICIPALITY_CODE_COLUMN: str})
+        df = df[[MUNICIPALITY_CODE_COLUMN, AREA_COLUMN]]
+        # 주석·소계 행은 코드가 비어 있다. 실제 시정촌 행만 남긴다.
+        code = df[MUNICIPALITY_CODE_COLUMN].astype("string").str.strip()
+        df = df.loc[code.notna() & code.ne("") & code.ne("nan")].copy()
+        df[AREA_COLUMN] = pd.to_numeric(df[AREA_COLUMN], errors="coerce")
+        df = df.loc[df[AREA_COLUMN] > 0]
+        df.insert(0, AREA_EVENT_COLUMN, sheet)
+        frames.append(df)
+
+    if not frames:
+        print(f"! {AREA_COLUMN}를 가진 시트가 없습니다.")
+        return 1
+
+    area = pd.concat(frames, ignore_index=True)
+    dup = area.duplicated([AREA_EVENT_COLUMN, MUNICIPALITY_CODE_COLUMN])
+    if dup.any():
+        print(f"! (이벤트, 시정촌코드) 중복 {int(dup.sum())}행이 있습니다.")
+        return 1
+
+    AREA_OUT.parent.mkdir(parents=True, exist_ok=True)
+    area.to_csv(AREA_OUT, index=False, encoding="utf-8-sig")
+    print(f"저장: {AREA_OUT}  ({len(area)}행 / 이벤트 {len(frames)}개)")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="이벤트별 CSV를 워크북으로 조립")
     ap.add_argument("--event-dir", default=str(EVENT_DIR))
     ap.add_argument("--check", action="store_true", help="조립하지 않고 상태만 본다")
+    ap.add_argument("--area-from-usgs", metavar="XLSX", nargs="?", const=str(USGS_OUT),
+                    help="이미 있는 USGS 워크북에서 area_km2를 뽑아 면적 CSV만 만든다")
     ap.add_argument("--partial", action="store_true",
                     help="이벤트가 다 모이지 않아도 있는 것만으로 조립한다. "
                          "loader는 9개 이벤트를 모두 요구하므로 학습은 돌지 않는다")
     a = ap.parse_args()
+
+    if a.area_from_usgs:
+        return area_from_usgs_workbook(Path(a.area_from_usgs))
 
     event_dir = Path(a.event_dir)
     status = event_status(event_dir)

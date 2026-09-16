@@ -44,12 +44,15 @@ LAM_GAMMAS = (0.0, 0.1, 1.0, 10.0)
 #
 # followup3-* : 교수님 피드백. bounded의 b가 상한에 계속 붙어 나오므로
 #               다른 조건은 그대로 두고 b 범위만 넓혀 안쪽에서 멈추는지 본다.
+#               넓히는 쪽은 상한뿐이라 하한은 -2로 두고 [-2, 4] / [-2, 10]으로 간다.
+#               b_bound 하나로는 비대칭을 표현할 수 없어 b_min/b_max로 준다.
 #               같은 checkout에서 여러 b 범위를 돌리면 params_/eval_detail_ 파일이
 #               서로 덮이므로 프리셋마다 tag_suffix로 꼬리표를 갈라 둔다.
 PRESETS = {
     "followup1": {"modes": ("bounded",), "lams": (10.0,), "b_bound": 2.0, "tag_suffix": ""},
     "followup2": {"modes": ("bounded",), "lams": (10.0,), "b_bound": 4.0, "tag_suffix": ""},
-    "followup3-lqmax-b10": {"modes": ("bounded",), "lams": (10.0,), "b_bound": 10.0,
+    "followup3-lqmax-b10": {"modes": ("bounded",), "lams": (10.0,),
+                            "b_min": -2.0, "b_max": 10.0,
                             "tag_suffix": "_b10"},
 }
 
@@ -71,14 +74,14 @@ DEFAULT_B_BOUND = 2.0
 
 
 def run_one(batch, eval_gt, gt_df, *, mode, lam, epochs, seed, b_bound=DEFAULT_B_BOUND,
-            tag_suffix=""):
+            b_min=None, b_max=None, tag_suffix=""):
     """한 조합을 학습하고 평가 결과 한 행을 만든다."""
     tag = f"{mode}_lam{lam:g}{tag_suffix}"
     print(f"\n{'='*60}\n[{tag}] prior={mode}  lam_gamma={lam}\n{'='*60}")
 
     reg, like, pri, hist = train(
         batch, seed=seed, epochs=epochs, lam_gamma=lam,
-        prior_mode=mode, b_bound=b_bound,
+        prior_mode=mode, b_bound=b_bound, b_min=b_min, b_max=b_max,
     )
 
     with torch.no_grad():
@@ -125,8 +128,11 @@ def run_one(batch, eval_gt, gt_df, *, mode, lam, epochs, seed, b_bound=DEFAULT_B
     return {
         "prior_mode": mode,
         "lam_gamma": lam,
-        "b_bound": b_bound if mode == "bounded" else np.nan,
+        "b_bound": b_bound if (mode == "bounded" and b_max is None) else np.nan,
         # 어느 b 범위로 돈 결과인지 CSV만 보고도 알 수 있어야 한다.
+        # b_bound는 대칭 범위만 표현하므로 실제로 쓰인 양끝을 prior에서 직접 읽는다.
+        "b_min": float(getattr(pri, "B_MIN", np.nan)) if mode == "bounded" else np.nan,
+        "b_max": float(getattr(pri, "B_MAX", np.nan)) if mode == "bounded" else np.nan,
         "run_tag": tag,
         "mse_ls": result.mse_ls,
         "mse_lq": result.mse_lq,
@@ -216,7 +222,8 @@ def collect_params(out_path=None, tags=None):
 
 
 def main(*, epochs=3000, seed=0, modes=PRIOR_MODES, lams=LAM_GAMMAS,
-         b_bound=DEFAULT_B_BOUND, out_name="experiments.csv", tag_suffix=""):
+         b_bound=DEFAULT_B_BOUND, b_min=None, b_max=None,
+         out_name="experiments.csv", tag_suffix=""):
     batch = load_pilot_a_batch(STATS_PATH, USGS_PATH)
     eval_gt = load_eval_ground_truth(GT_PATH, batch)
     gt_df = to_eval_gt(eval_gt)
@@ -224,7 +231,8 @@ def main(*, epochs=3000, seed=0, modes=PRIOR_MODES, lams=LAM_GAMMAS,
 
     n_ev = int(eval_gt.event_idx.unique().numel())
     print(f"batch {batch.batch_size}행 / 평가 GT {eval_gt.batch_size}행 / 이벤트 {n_ev}개")
-    print(f"조합 {len(modes) * len(lams)}개 x {epochs}에폭 (bounded의 b 범위 ±{b_bound})")
+    b_desc = f"[{b_min}, {b_max}]" if b_max is not None else f"±{b_bound}"
+    print(f"조합 {len(modes) * len(lams)}개 x {epochs}에폭 (bounded의 b 범위 {b_desc})")
 
     rows, tags = [], []
     for mode in modes:
@@ -232,7 +240,7 @@ def main(*, epochs=3000, seed=0, modes=PRIOR_MODES, lams=LAM_GAMMAS,
             tags.append(f"{mode}_lam{lam:g}{tag_suffix}")
             rows.append(run_one(batch, eval_gt, gt_df, mode=mode, lam=lam,
                                 epochs=epochs, seed=seed, b_bound=b_bound,
-                                tag_suffix=tag_suffix))
+                                b_min=b_min, b_max=b_max, tag_suffix=tag_suffix))
             # 중간에 끊겨도 여기까지 결과는 남는다.
             pd.DataFrame(rows).to_csv(out_csv, index=False, encoding="utf-8-sig")
 
@@ -260,6 +268,10 @@ if __name__ == "__main__":
                     help="gamma L2 정규화 계수")
     ap.add_argument("--b-bound", type=float, default=DEFAULT_B_BOUND,
                     help="bounded 모드에서 b의 범위. b in [-b_bound, +b_bound]")
+    ap.add_argument("--b-min", type=float, default=None,
+                    help="비대칭 b 범위의 하한. --b-max와 함께 주면 --b-bound를 대신한다")
+    ap.add_argument("--b-max", type=float, default=None,
+                    help="비대칭 b 범위의 상한. --b-min과 함께 줘야 한다")
     ap.add_argument("--epochs", type=int, default=3000)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default="experiments.csv", help="outputs/ 아래 저장할 파일명")
@@ -270,18 +282,25 @@ if __name__ == "__main__":
                          "none이면 --modes/--lams 그리드를 그대로 돈다")
     a = ap.parse_args()
 
-    modes, lams, b_bound, tag_suffix = tuple(a.modes), tuple(a.lams), a.b_bound, ""
+    modes, lams, tag_suffix = tuple(a.modes), tuple(a.lams), ""
+    b_bound, b_min, b_max = a.b_bound, a.b_min, a.b_max
+    if (b_min is None) != (b_max is None):
+        ap.error("--b-min과 --b-max는 함께 지정해야 합니다.")
+
     if a.preset == "none":
         a.preset = None
     if a.preset:
         cfg = PRESETS[a.preset]
-        modes, lams, b_bound = cfg["modes"], cfg["lams"], cfg["b_bound"]
+        modes, lams = cfg["modes"], cfg["lams"]
+        b_bound = cfg.get("b_bound", DEFAULT_B_BOUND)
+        b_min, b_max = cfg.get("b_min"), cfg.get("b_max")
         tag_suffix = cfg.get("tag_suffix", "")
-        print(f"preset={a.preset}: modes={modes} lams={lams} b_bound=±{b_bound}")
+        b_desc = f"[{b_min}, {b_max}]" if b_max is not None else f"±{b_bound}"
+        print(f"preset={a.preset}: modes={modes} lams={lams} b={b_desc}")
 
     _, run_tags = main(epochs=a.epochs, seed=a.seed, modes=modes,
-                       lams=lams, b_bound=b_bound, out_name=a.out,
-                       tag_suffix=tag_suffix)
+                       lams=lams, b_bound=b_bound, b_min=b_min, b_max=b_max,
+                       out_name=a.out, tag_suffix=tag_suffix)
 
     # 이번에 돌린 조합만 모은다. 예전 실행분과 섞으면 표가 무너진다.
     suffix = f"_{a.preset}" if a.preset else ""

@@ -36,6 +36,10 @@ MERGE_KEYS = ["event_idx", "muni_code"]
 # 없으면 prior 관련 지표만 nan이 되고 나머지는 그대로 나온다.
 PRIOR_COLUMNS = {"ls": "prior_ls", "lq": "prior_lq"}
 
+# 모델 자신의 prior 점수. 원값 prior는 "USGS를 이겼나",
+# 이쪽은 "피해 데이터가 prior에 무엇을 보탰나"를 답한다.
+ZPRIOR_COLUMNS = {"ls": "zprior_ls", "lq": "zprior_lq"}
+
 # 모델 자신의 prior 점수(면적 항 조건이면 z = a·log p̄ + b + c·log k).
 # 원값 prior는 "USGS를 이겼나", 이쪽은 "피해 데이터가 prior에 무엇을 보탰나"를 답한다.
 # 없으면 관련 지표만 nan이 된다.

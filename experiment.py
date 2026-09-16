@@ -41,10 +41,23 @@ LAM_GAMMAS = (0.0, 0.1, 1.0, 10.0)
 # followup2 : LQ prior를 최대집계로 바꾸고 b 범위를 [-2, 4]로 넓힌 조건.
 #             prior 집계 방식 전환은 loader 쪽(followup2-prior 브랜치) 작업이라
 #             여기서는 b 범위만 잡아 둔다.
+#
+# followup3-* : 교수님 피드백. bounded의 b가 상한에 계속 붙어 나오므로
+#               다른 조건은 그대로 두고 b 범위만 넓혀 안쪽에서 멈추는지 본다.
+#               같은 checkout에서 여러 b 범위를 돌리면 params_/eval_detail_ 파일이
+#               서로 덮이므로 프리셋마다 tag_suffix로 꼬리표를 갈라 둔다.
 PRESETS = {
-    "followup1": {"modes": ("bounded",), "lams": (10.0,), "b_bound": 2.0},
-    "followup2": {"modes": ("bounded",), "lams": (10.0,), "b_bound": 4.0},
+    "followup1": {"modes": ("bounded",), "lams": (10.0,), "b_bound": 2.0, "tag_suffix": ""},
+    "followup2": {"modes": ("bounded",), "lams": (10.0,), "b_bound": 4.0, "tag_suffix": ""},
+    "followup3-avg-b4": {"modes": ("bounded",), "lams": (10.0,), "b_bound": 4.0,
+                         "tag_suffix": "_b4"},
+    "followup3-avg-b10": {"modes": ("bounded",), "lams": (10.0,), "b_bound": 10.0,
+                          "tag_suffix": "_b10"},
 }
+
+# 이 브랜치의 기본 조건. followup3-* 브랜치마다 이 값만 다르다.
+# --preset을 손으로 넣지 않아도 브랜치가 뜻하는 조건 그대로 돌아간다.
+DEFAULT_PRESET = "followup3-avg-b4"
 
 # 완료기준의 주 지표가 "2004 니가타 LS posterior AUC"라 이벤트 번호를 고정해 둔다.
 # schema.EVENTS의 0번이 2004 니가타현주에쓰다.
@@ -59,9 +72,10 @@ RUN_DIR = OUT_DIR / "experiments"
 DEFAULT_B_BOUND = 2.0
 
 
-def run_one(batch, eval_gt, gt_df, *, mode, lam, epochs, seed, b_bound=DEFAULT_B_BOUND):
+def run_one(batch, eval_gt, gt_df, *, mode, lam, epochs, seed, b_bound=DEFAULT_B_BOUND,
+            tag_suffix=""):
     """한 조합을 학습하고 평가 결과 한 행을 만든다."""
-    tag = f"{mode}_lam{lam:g}"
+    tag = f"{mode}_lam{lam:g}{tag_suffix}"
     print(f"\n{'='*60}\n[{tag}] prior={mode}  lam_gamma={lam}\n{'='*60}")
 
     reg, like, pri, hist = train(
@@ -114,6 +128,8 @@ def run_one(batch, eval_gt, gt_df, *, mode, lam, epochs, seed, b_bound=DEFAULT_B
         "prior_mode": mode,
         "lam_gamma": lam,
         "b_bound": b_bound if mode == "bounded" else np.nan,
+        # 어느 b 범위로 돈 결과인지 CSV만 보고도 알 수 있어야 한다.
+        "run_tag": tag,
         "mse_ls": result.mse_ls,
         "mse_lq": result.mse_lq,
         # 후속실험 1의 완료기준. posterior AUC가 prior 단독 AUC를 넘어야 한다.
@@ -202,7 +218,7 @@ def collect_params(out_path=None, tags=None):
 
 
 def main(*, epochs=3000, seed=0, modes=PRIOR_MODES, lams=LAM_GAMMAS,
-         b_bound=DEFAULT_B_BOUND, out_name="experiments.csv"):
+         b_bound=DEFAULT_B_BOUND, out_name="experiments.csv", tag_suffix=""):
     batch = load_pilot_a_batch(STATS_PATH, USGS_PATH)
     eval_gt = load_eval_ground_truth(GT_PATH, batch)
     gt_df = to_eval_gt(eval_gt)
@@ -215,9 +231,10 @@ def main(*, epochs=3000, seed=0, modes=PRIOR_MODES, lams=LAM_GAMMAS,
     rows, tags = [], []
     for mode in modes:
         for lam in lams:
-            tags.append(f"{mode}_lam{lam:g}")
+            tags.append(f"{mode}_lam{lam:g}{tag_suffix}")
             rows.append(run_one(batch, eval_gt, gt_df, mode=mode, lam=lam,
-                                epochs=epochs, seed=seed, b_bound=b_bound))
+                                epochs=epochs, seed=seed, b_bound=b_bound,
+                                tag_suffix=tag_suffix))
             # 중간에 끊겨도 여기까지 결과는 남는다.
             pd.DataFrame(rows).to_csv(out_csv, index=False, encoding="utf-8-sig")
 
@@ -248,19 +265,25 @@ if __name__ == "__main__":
     ap.add_argument("--epochs", type=int, default=3000)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default="experiments.csv", help="outputs/ 아래 저장할 파일명")
-    ap.add_argument("--preset", choices=sorted(PRESETS),
+    ap.add_argument("--preset", choices=[*sorted(PRESETS), "none"],
+                    default=DEFAULT_PRESET,
                     help="후속실험 조건을 이름으로 지정한다. "
-                         "지정하면 --modes/--lams/--b-bound를 덮어쓴다")
+                         "지정하면 --modes/--lams/--b-bound를 덮어쓴다. "
+                         "none이면 --modes/--lams 그리드를 그대로 돈다")
     a = ap.parse_args()
 
-    modes, lams, b_bound = tuple(a.modes), tuple(a.lams), a.b_bound
+    modes, lams, b_bound, tag_suffix = tuple(a.modes), tuple(a.lams), a.b_bound, ""
+    if a.preset == "none":
+        a.preset = None
     if a.preset:
         cfg = PRESETS[a.preset]
         modes, lams, b_bound = cfg["modes"], cfg["lams"], cfg["b_bound"]
+        tag_suffix = cfg.get("tag_suffix", "")
         print(f"preset={a.preset}: modes={modes} lams={lams} b_bound=±{b_bound}")
 
     _, run_tags = main(epochs=a.epochs, seed=a.seed, modes=modes,
-                       lams=lams, b_bound=b_bound, out_name=a.out)
+                       lams=lams, b_bound=b_bound, out_name=a.out,
+                       tag_suffix=tag_suffix)
 
     # 이번에 돌린 조합만 모은다. 예전 실행분과 섞으면 표가 무너진다.
     suffix = f"_{a.preset}" if a.preset else ""

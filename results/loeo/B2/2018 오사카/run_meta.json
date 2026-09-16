@@ -1,0 +1,18 @@
+{
+  "argv": "train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2018 오사카 --out results/loeo/B2/2018 오사카",
+  "prior_family": "area",
+  "prior_mode": "free",
+  "area_link": "logit",
+  "fix_b": false,
+  "mtn_prior": true,
+  "omega": 4.35,
+  "test_event": "2018 오사카",
+  "n_bce_rows": 118,
+  "n_params": 46,
+  "kappa": -0.2682933615029841,
+  "b_ls": -0.5535074380040379,
+  "a_ls": "",
+  "loss_base_final": 6374.894616231555,
+  "bce_sum_final": 36.4538737609392,
+  "loss_total_final": 6533.4689670916405
+}

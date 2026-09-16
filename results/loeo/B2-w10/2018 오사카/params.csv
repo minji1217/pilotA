@@ -1,0 +1,53 @@
+﻿module,group,param,idx,label,transform,raw_value,value
+reg,alpha_c,alpha_channel,0,사망,none,-19.805701555346964,-19.805701555346964
+reg,alpha_c,alpha_channel,1,중상,none,-15.994492427620917,-15.994492427620917
+reg,alpha_c,alpha_channel,2,경상,none,-13.083926489879213,-13.083926489879213
+reg,alpha_c,alpha_channel,3,전파,none,-12.67225446378339,-12.67225446378339
+reg,alpha_c,alpha_channel,4,반파,none,-12.451405578489453,-12.451405578489453
+reg,alpha_c,alpha_channel,5,일부파손,none,-9.457811575797384,-9.457811575797384
+reg,alpha_e,alpha_event_free,0,2004 니가타현주에쓰,fixed(reference),0.0,0.0
+reg,alpha_e,alpha_event_free,1,2007 니가타현주에쓰오키,none,-0.7185422146069763,-0.7185422146069763
+reg,alpha_e,alpha_event_free,2,2008 이와테미야기,none,-2.498900372089292,-2.498900372089292
+reg,alpha_e,alpha_event_free,3,2016 구마모토,none,-1.5020431238775165,-1.5020431238775165
+reg,alpha_e,alpha_event_free,4,2018 오사카,none,-2.8403418418347792,-2.8403418418347792
+reg,alpha_e,alpha_event_free,5,2018 훗카이도,none,-0.7910225592624752,-0.7910225592624752
+reg,alpha_e,alpha_event_free,6,2021 후쿠시마,none,-2.363884755015256,-2.363884755015256
+reg,alpha_e,alpha_event_free,7,2024 노토반도,none,-1.3870596481365922,-1.3870596481365922
+reg,alpha_e,alpha_event_free,8,2000 돗토리,none,-2.714374348744462,-2.714374348744462
+reg,beta_c,beta_pgv,0,사망,none,3.2190993874499796,3.2190993874499796
+reg,beta_c,beta_pgv,1,중상,none,2.444940202430138,2.444940202430138
+reg,beta_c,beta_pgv,2,경상,none,2.006223839120845,2.006223839120845
+reg,beta_c,beta_pgv,3,전파,none,2.314025503230651,2.314025503230651
+reg,beta_c,beta_pgv,4,반파,none,2.750520027927496,2.750520027927496
+reg,beta_c,beta_pgv,5,일부파손,none,2.683925029148109,2.683925029148109
+reg,delta_c,delta_wood,0,사망,none,0.14666133071114898,0.14666133071114898
+reg,delta_c,delta_wood,1,중상,none,0.21077303886414783,0.21077303886414783
+reg,delta_c,delta_wood,2,경상,none,-0.03700174199011575,-0.03700174199011575
+reg,delta_c,delta_wood,3,전파,none,0.8301279125348405,0.8301279125348405
+reg,delta_c,delta_wood,4,반파,none,0.509638302263071,0.509638302263071
+reg,delta_c,delta_wood,5,일부파손,none,0.16766258021173397,0.16766258021173397
+reg,gamma_LS,_gamma_ls_unconstrained,0,사망,softplus,-0.47403205953423844,0.48396033942370603
+reg,gamma_LS,_gamma_ls_unconstrained,1,중상,softplus,-0.09729190430498141,0.6456839763667586
+reg,gamma_LS,_gamma_ls_unconstrained,2,경상,softplus,-0.020420701352767356,0.6829889546083604
+reg,gamma_LS,_gamma_ls_unconstrained,3,전파,softplus,-1.2291194271893802,0.2566170701190698
+reg,gamma_LS,_gamma_ls_unconstrained,4,반파,softplus,-0.6111562559977126,0.43354902352590696
+reg,gamma_LS,_gamma_ls_unconstrained,5,일부파손,softplus,-0.41259883558650945,0.5079782366671127
+reg,gamma_LQ,_gamma_lq_unconstrained,0,사망,softplus,-3.988137161760319,0.01836454297704311
+reg,gamma_LQ,_gamma_lq_unconstrained,1,중상,softplus,-4.252742666095893,0.014124937203057911
+reg,gamma_LQ,_gamma_lq_unconstrained,2,경상,softplus,-2.2746237908740734,0.09788467099777717
+reg,gamma_LQ,_gamma_lq_unconstrained,3,전파,softplus,-2.7763324525505197,0.06040478993227714
+reg,gamma_LQ,_gamma_lq_unconstrained,4,반파,softplus,-2.1224538587404007,0.11309423723324198
+reg,gamma_LQ,_gamma_lq_unconstrained,5,일부파손,softplus,-1.5087933596705416,0.19981490024633597
+lik,phi_c,_phi_unconstrained,0,사망,softplus,-0.6567759253456573,0.41773643374065905
+lik,phi_c,_phi_unconstrained,1,중상,softplus,-0.38306677179938875,0.5198452493295502
+lik,phi_c,_phi_unconstrained,2,경상,softplus,-0.4596875793562417,0.4894881314122719
+lik,phi_c,_phi_unconstrained,3,전파,softplus,-1.8395060209797707,0.1474677397571506
+lik,phi_c,_phi_unconstrained,4,반파,softplus,-1.4907923495561415,0.20309932314731532
+lik,phi_c,_phi_unconstrained,5,일부파손,softplus,-0.5906873559775443,0.4407977568074409
+pri,a,a,0,LS,fixed(mode=area),1.0,1.0
+pri,a,a,1,LQ,fixed(mode=area),1.0,1.0
+pri,b,_b_raw,0,LS,"bounded[-2.0,4.0]",-1.0704748187368909,-0.4681232164061844
+pri,b,b,1,LQ,fixed(mode=area),0.0,0.0
+pri,c,c,0,LS,fixed(mode=area),1.0,1.0
+pri,c,c,1,LQ,fixed(mode=area),1.0,1.0
+pri,kappa,kappa,0,LS,none,-0.2675467376620444,-0.2675467376620444

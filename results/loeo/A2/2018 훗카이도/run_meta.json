@@ -1,0 +1,18 @@
+{
+  "argv": "train.py --prior-mode bounded --lam-gamma 10 --b-min -2 --b-max 2 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 4.35 --test-event 2018 훗카이도 --out results/loeo/A2/2018 훗카이도",
+  "prior_family": "base",
+  "prior_mode": "bounded",
+  "area_link": "",
+  "fix_b": false,
+  "mtn_prior": true,
+  "omega": 4.35,
+  "test_event": "2018 훗카이도",
+  "n_bce_rows": 112,
+  "n_params": 49,
+  "kappa": 0.9871192517795693,
+  "b_ls": 1.9957613062116737,
+  "a_ls": 0.5010930358636057,
+  "loss_base_final": 6358.998379385264,
+  "bce_sum_final": 101.30475186426297,
+  "loss_total_final": 6799.674049994808
+}

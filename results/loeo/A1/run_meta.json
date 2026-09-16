@@ -1,0 +1,18 @@
+{
+  "argv": "train.py --prior-mode bounded --lam-gamma 10 --b-min -2 --b-max 2 --seed 0 --epochs 3000 --mtn-prior --out results/loeo/A1",
+  "prior_family": "base",
+  "prior_mode": "bounded",
+  "area_link": "",
+  "fix_b": false,
+  "mtn_prior": true,
+  "omega": 0.0,
+  "test_event": "",
+  "n_bce_rows": 125,
+  "n_params": 49,
+  "kappa": 0.2795055123511794,
+  "b_ls": 1.9894567309998856,
+  "a_ls": 0.504068667733564,
+  "loss_base_final": 6357.481980886364,
+  "bce_sum_final": 0.0,
+  "loss_total_final": 6357.481980886364
+}

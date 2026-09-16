@@ -1,0 +1,18 @@
+{
+  "argv": "train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --mtn-prior --ls-bce-weight 1 --test-event 2016 구마모토 --out results/loeo/B2-w1/2016 구마모토",
+  "prior_family": "area",
+  "prior_mode": "free",
+  "area_link": "logit",
+  "fix_b": false,
+  "mtn_prior": true,
+  "omega": 1.0,
+  "test_event": "2016 구마모토",
+  "n_bce_rows": 96,
+  "n_params": 46,
+  "kappa": -0.4817357745096752,
+  "b_ls": -1.119281749829108,
+  "a_ls": "",
+  "loss_base_final": 6367.400855038385,
+  "bce_sum_final": 33.49337364223231,
+  "loss_total_final": 6400.894228680618
+}

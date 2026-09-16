@@ -1,0 +1,53 @@
+﻿module,group,param,idx,label,transform,raw_value,value
+reg,alpha_c,alpha_channel,0,사망,none,-19.83062318662152,-19.83062318662152
+reg,alpha_c,alpha_channel,1,중상,none,-16.04076076132835,-16.04076076132835
+reg,alpha_c,alpha_channel,2,경상,none,-13.107522767118866,-13.107522767118866
+reg,alpha_c,alpha_channel,3,전파,none,-12.604790882464352,-12.604790882464352
+reg,alpha_c,alpha_channel,4,반파,none,-12.350572442640901,-12.350572442640901
+reg,alpha_c,alpha_channel,5,일부파손,none,-9.476812895897135,-9.476812895897135
+reg,alpha_e,alpha_event_free,0,2004 니가타현주에쓰,fixed(reference),0.0,0.0
+reg,alpha_e,alpha_event_free,1,2007 니가타현주에쓰오키,none,-0.6984595748717981,-0.6984595748717981
+reg,alpha_e,alpha_event_free,2,2008 이와테미야기,none,-2.445322999828605,-2.445322999828605
+reg,alpha_e,alpha_event_free,3,2016 구마모토,none,-1.4969569457254468,-1.4969569457254468
+reg,alpha_e,alpha_event_free,4,2018 오사카,none,-2.859479087185177,-2.859479087185177
+reg,alpha_e,alpha_event_free,5,2018 훗카이도,none,-0.7777489912053489,-0.7777489912053489
+reg,alpha_e,alpha_event_free,6,2021 후쿠시마,none,-2.3549537253380137,-2.3549537253380137
+reg,alpha_e,alpha_event_free,7,2024 노토반도,none,-1.370949929490174,-1.370949929490174
+reg,alpha_e,alpha_event_free,8,2000 돗토리,none,-2.7186525009984135,-2.7186525009984135
+reg,beta_c,beta_pgv,0,사망,none,3.230915116061364,3.230915116061364
+reg,beta_c,beta_pgv,1,중상,none,2.47061558983222,2.47061558983222
+reg,beta_c,beta_pgv,2,경상,none,2.0313243310079674,2.0313243310079674
+reg,beta_c,beta_pgv,3,전파,none,2.3113757974041014,2.3113757974041014
+reg,beta_c,beta_pgv,4,반파,none,2.7593432911975992,2.7593432911975992
+reg,beta_c,beta_pgv,5,일부파손,none,2.7007595528448936,2.7007595528448936
+reg,delta_c,delta_wood,0,사망,none,0.13934305114050344,0.13934305114050344
+reg,delta_c,delta_wood,1,중상,none,0.20004360245040054,0.20004360245040054
+reg,delta_c,delta_wood,2,경상,none,-0.04435613675793644,-0.04435613675793644
+reg,delta_c,delta_wood,3,전파,none,0.8304913990870709,0.8304913990870709
+reg,delta_c,delta_wood,4,반파,none,0.5070163534018349,0.5070163534018349
+reg,delta_c,delta_wood,5,일부파손,none,0.16169551987905784,0.16169551987905784
+reg,gamma_LS,_gamma_ls_unconstrained,0,사망,softplus,-0.5789919772050002,0.4449825986523583
+reg,gamma_LS,_gamma_ls_unconstrained,1,중상,softplus,-0.25251314447984363,0.5748398833662659
+reg,gamma_LS,_gamma_ls_unconstrained,2,경상,softplus,-0.24481676953793657,0.57821206698741
+reg,gamma_LS,_gamma_ls_unconstrained,3,전파,softplus,-1.6324480222637803,0.17852311916613145
+reg,gamma_LS,_gamma_ls_unconstrained,4,반파,softplus,-1.1769937037664677,0.26865512733297126
+reg,gamma_LS,_gamma_ls_unconstrained,5,일부파손,softplus,-0.6189846673215368,0.43080200581047196
+reg,gamma_LQ,_gamma_lq_unconstrained,0,사망,softplus,-3.967104854114055,0.018751245033736732
+reg,gamma_LQ,_gamma_lq_unconstrained,1,중상,softplus,-4.2200794035551485,0.014590516271040804
+reg,gamma_LQ,_gamma_lq_unconstrained,2,경상,softplus,-2.179616888771204,0.10713530156848375
+reg,gamma_LQ,_gamma_lq_unconstrained,3,전파,softplus,-2.7657284627898506,0.0610294719084653
+reg,gamma_LQ,_gamma_lq_unconstrained,4,반파,softplus,-2.0937731328753397,0.1162007419569591
+reg,gamma_LQ,_gamma_lq_unconstrained,5,일부파손,softplus,-1.4533224197885606,0.21009254853967418
+lik,phi_c,_phi_unconstrained,0,사망,softplus,-0.6687542882130315,0.41366236288599795
+lik,phi_c,_phi_unconstrained,1,중상,softplus,-0.41303080410799214,0.5078062106579089
+lik,phi_c,_phi_unconstrained,2,경상,softplus,-0.4917116954342993,0.47721423357858117
+lik,phi_c,_phi_unconstrained,3,전파,softplus,-1.8615426729830091,0.1444748743044365
+lik,phi_c,_phi_unconstrained,4,반파,softplus,-1.521604193311573,0.19750676903830874
+lik,phi_c,_phi_unconstrained,5,일부파손,softplus,-0.6081999991424475,0.43459001808476405
+pri,a,a,0,LS,fixed(mode=area),1.0,1.0
+pri,a,a,1,LQ,fixed(mode=area),1.0,1.0
+pri,b,_b_raw,0,LS,"bounded[-2.0,4.0]",-0.6791570435454736,0.018696806216034645
+pri,b,b,1,LQ,fixed(mode=area),0.0,0.0
+pri,c,c,0,LS,fixed(mode=area),1.0,1.0
+pri,c,c,1,LQ,fixed(mode=area),1.0,1.0
+pri,kappa,kappa,0,LS,none,0.16721890919218024,0.16721890919218024

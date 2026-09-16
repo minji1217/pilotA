@@ -1,0 +1,18 @@
+{
+  "argv": "train.py --prior-family area --lam-gamma 10 --b-min -2 --b-max 4 --seed 0 --epochs 3000 --fix-b --area-link log --out results/loeo/B0-log",
+  "prior_family": "area",
+  "prior_mode": "free",
+  "area_link": "log",
+  "fix_b": true,
+  "mtn_prior": false,
+  "omega": 0.0,
+  "test_event": "",
+  "n_bce_rows": 125,
+  "n_params": 44,
+  "kappa": "",
+  "b_ls": 0.0,
+  "a_ls": "",
+  "loss_base_final": 6382.310765785734,
+  "bce_sum_final": 0.0,
+  "loss_total_final": 6382.310765785734
+}

@@ -35,7 +35,7 @@ def save_predictions(batch, p_ls, p_lq, path="outputs/predictions.csv"):
     return df
 
 
-def to_eval_pred(batch: PilotABatch, p_ls, p_lq, eval_gt: EvalGroundTruthBatch):
+def to_eval_pred(batch: PilotABatch, p_ls, p_lq, eval_gt: EvalGroundTruthBatch, pri=None):
     """eval.py에 넘길 훗카이도 행만 뽑는다.
 
     loader가 만든 model_row_idx가 이미 GT와 같은 순서로 정렬돼 있으므로
@@ -46,7 +46,7 @@ def to_eval_pred(batch: PilotABatch, p_ls, p_lq, eval_gt: EvalGroundTruthBatch):
     """
     idx = eval_gt.model_row_idx
 
-    return pd.DataFrame({
+    out = pd.DataFrame({
         # 같은 시정촌코드가 여러 이벤트에 나오므로 event_idx까지 있어야 join이 성립한다.
         "event_idx": eval_gt.event_idx.tolist(),
         "muni_code": list(eval_gt.municipality_code),
@@ -55,6 +55,19 @@ def to_eval_pred(batch: PilotABatch, p_ls, p_lq, eval_gt: EvalGroundTruthBatch):
         "prior_ls": batch.pi_ls[idx].detach().numpy(),
         "prior_lq": batch.pi_lq[idx].detach().numpy(),
     })
+
+    # 모델 자신의 prior 점수. 면적 항 조건이면 z = a·log p̄ + b + c·log k 라서
+    # 원값 prior와 순위가 다르다. 면적 항이 없는 조건은 인자 두 개짜리 z를 쓴다.
+    if pri is not None and hasattr(pri, "z"):
+        with torch.no_grad():
+            if hasattr(batch, "log_k_ls"):
+                z_ls, z_lq = pri.z(batch.pi_ls, batch.pi_lq, batch.log_k_ls, batch.log_k_lq)
+            else:
+                z_ls, z_lq = pri.z(batch.pi_ls, batch.pi_lq)
+        out["zprior_ls"] = z_ls[idx].detach().numpy()
+        out["zprior_lq"] = z_lq[idx].detach().numpy()
+
+    return out
 
 
 def to_eval_gt(eval_gt: EvalGroundTruthBatch):

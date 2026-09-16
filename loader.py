@@ -851,15 +851,23 @@ def _prepare_ls_ground_truth(
 
     확정 규칙:
     1. ls_flag 컬럼이 있으면 ls_flag를 우선 사용한다.
-       1 -> 1, 0 -> 0, NA -> 0 (평가 포함)
+       1 -> 1, 0 -> 0, NA -> 평가 제외
     2. ls_flag가 없으면 ls_area_ha를 사용한다.
-       >0 -> 1, 0 -> 0, NA -> 0 (평가 포함), 음수 -> 오류
+       >0 -> 1, 0 -> 0, NA -> 평가 제외, 음수 -> 오류
 
-    NA를 0으로 본다. 기록이 없다는 것은 그 시정촌에서 산사태가 확인되지 않았다는 뜻이고,
-    LQ의 jshis_flag가 이미 같은 규칙을 쓰고 있어 두 hazard의 정의를 맞춘다.
+    NA는 "없었다"가 아니라 "모른다"다. 정답지가 둘을 의도적으로 갈라 놓았다.
+    ls_flag=0 행의 근거는 "조사표에 행이 있고 산사태 칸만 비었다 = 조사 대상이었고 0"인 반면,
+    NA 행의 근거는 "조사의 유무 자체를 확인할 수 없어 NA"(2000 돗토리),
+    "항공사진 판독 범위 밖"(2007 니가타오키),
+    "신고 기반이라 산지 내부를 못 잡을 수 있어 NA"(2018 오사카, 2021 후쿠시마)다.
+    근거가 적힌 NA 149행 중 "확인 결과 없었다"고 말하는 행은 하나도 없다.
 
-    NA를 빼면 음성이 될 행이 대부분 사라져 평가가 양성 쪽으로 심하게 쏠린다.
-    실제로 GT 439행 중 304행이 NA였고, 그것을 빼니 LS 평가가 125행 / 양성률 84%가 됐다.
+    LQ가 jshis_flag에서만 NA->0을 쓰는 것도 같은 이치다. jshis는 전국을 덮는 위험도
+    지도라 빈칸이 곧 0이지만, lq_flag는 현장 기록이라 NA를 평가에서 뺀다.
+    ls_flag는 현장 기록 쪽이므로 지도용 규칙을 쓰면 안 된다.
+
+    그 결과 LS 평가는 125행 / 양성률 84%로 좁다. 음성이 9개 이벤트를 통틀어 20행뿐이라
+    AUC가 불안정하다는 것은 결과를 읽을 때 반드시 같이 말해야 한다.
     """
     df, sheet_name = _read_gt_sheet(gt_path, event_name, "LS")
     result = _prepare_gt_code_rows(df, sheet_name=sheet_name)
@@ -870,8 +878,8 @@ def _prepare_ls_ground_truth(
             sheet_name=sheet_name,
             column_name=GT_LS_FLAG_COLUMN,
         )
-        # NA는 "산사태가 확인되지 않음"이므로 0으로 세고 평가에 포함한다.
-        result["ls_eval_mask"] = True
+        # NA는 "모른다"이므로 평가에서 뺀다.
+        result["ls_eval_mask"] = raw.notna()
         result["gt_ls"] = raw.fillna(0.0).astype("int64")
 
     elif GT_LS_AREA_COLUMN in df.columns:
@@ -895,8 +903,8 @@ def _prepare_ls_ground_truth(
                 f"[{sheet_name}] ls_area_ha는 음수가 될 수 없습니다: {bad_codes}"
             )
 
-        # 면적이 비어 있는 것도 "확인되지 않음"이므로 0으로 세고 평가에 포함한다.
-        result["ls_eval_mask"] = True
+        # 면적이 비어 있는 것도 "모른다"이므로 평가에서 뺀다.
+        result["ls_eval_mask"] = ls_area.notna()
         result["gt_ls"] = (ls_area.fillna(0.0) > 0).astype("int64")
 
     else:

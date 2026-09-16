@@ -192,7 +192,8 @@ class AreaPrior(nn.Module):
     # b=0으로 고정된 모드(fixed / a1-* / lq-*)는 중심화하면 유도식이 깨지므로 넣지 않는다.
     MODES = ("fixed", "tied", "bounded", "free", "a1-c05", "a1-c2",
              "lq-c05", "lq-c075", "lq-c-free", "b-only",
-             "tied-ctr", "bounded-ctr", "free-ctr", "b-only-ctr")
+             "tied-ctr", "bounded-ctr", "free-ctr", "b-only-ctr",
+             "grid")
     # c를 학습하지 않는 모드의 c 값. tied는 c=a라서 여기 없다.
     FIXED_C = {"fixed": 1.0, "bounded": 1.0, "a1-c05": 0.5, "a1-c2": 2.0,
                "b-only": 1.0, "b-only-ctr": 1.0}
@@ -206,7 +207,8 @@ class AreaPrior(nn.Module):
     A_MIN, A_MAX = 0.5, 2.0
 
     def __init__(self, mode: str = "fixed", b_min: float = -2.0, b_max: float = 4.0,
-                 c_min: float = 0.0, c_max: float = 2.0):
+                 c_min: float = 0.0, c_max: float = 2.0,
+                 c_ls: float | None = None, c_lq: float | None = None):
         super().__init__()
         if mode not in self.MODES:
             raise ValueError(f"mode는 {self.MODES} 중 하나여야 합니다: {mode}")
@@ -266,6 +268,13 @@ class AreaPrior(nn.Module):
             if self.learn_c_lq:
                 c_init = _inverse_sigmoid((1.0 - c_min) / (c_max - c_min))
                 self._c_lq_raw = nn.Parameter(torch.full((1,), c_init, dtype=DTYPE))
+        elif self.base_mode == "grid":
+            # c_LS, c_LQ를 호출자가 직접 준다. a=1, b=0은 fixed와 똑같이 고정이라
+            # 학습 파라미터가 0개이고, A(1,1) · E(0.5,0.5) · G(1,0.5) · H(1,0.75)는
+            # 이 모드의 격자 위 한 점과 정확히 같은 모형이다.
+            if c_ls is None or c_lq is None:
+                raise ValueError("mode='grid'는 c_ls와 c_lq를 모두 받아야 합니다")
+            self.register_buffer("c", torch.tensor([float(c_ls), float(c_lq)], dtype=DTYPE))
         elif self.base_mode in self.FIXED_C:
             self.register_buffer(
                 "c", torch.full((2,), self.FIXED_C[self.base_mode], dtype=DTYPE)

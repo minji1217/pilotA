@@ -102,7 +102,8 @@ def to_eval_gt(eval_gt: EvalGroundTruthBatch):
 
 
 def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_bound=2.0,
-          b_min=None,b_max=None,area_mode=None,c_min=0.0,c_max=2.0):
+          b_min=None,b_max=None,area_mode=None,c_min=0.0,c_max=2.0,
+          c_ls=None,c_lq=None):
     """
     lam_gamma  : gamma에 거는 L2 정규화 계수. loss에 lam_gamma * sum(gamma^2)를 더한다.
                  gamma에 N(0, 1/(2*lam_gamma)) prior를 준 MAP 추정과 같다.
@@ -113,6 +114,8 @@ def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_
                  후속실험 2의 b in [-2, 4]가 이 경우다. 둘 다 줘야 한다.
     area_mode  : 후속실험 3. AreaPrior 모드(prior.AreaPrior.MODES). 주면 prior_mode·b_bound는 쓰지 않는다.
                  b 범위는 b_min/b_max(기본 [-2, 4]), c 범위는 c_min/c_max(기본 [0, 2])다.
+    c_ls/c_lq  : area_mode="grid"에서 c를 hazard별로 직접 지정한다. a=1, b=0은 고정이라
+                 학습되는 prior 파라미터가 0개다. c 스윕 실험에서 쓴다.
     """
     torch.manual_seed(seed)
 
@@ -131,7 +134,8 @@ def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_
         pri=AreaPrior(mode=area_mode,
                       b_min=default_b[0] if b_min is None else b_min,
                       b_max=default_b[1] if b_max is None else b_max,
-                      c_min=c_min,c_max=c_max)
+                      c_min=c_min,c_max=c_max,
+                      c_ls=c_ls,c_lq=c_lq)
         # 중심화 모드면 batch 전체의 log k 평균을 한 번 재 둔다.
         pri.fit_center(batch.log_k_ls, batch.log_k_lq)
 

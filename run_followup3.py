@@ -124,8 +124,18 @@ SPLIT_RUNS = [
         note="c_LS=1 고정, c_LQ만 학습 [0, 2]"),
 ]
 
-RUNS: list[Run] = [*FEEDBACK_RUNS, *NATMIX_RUNS, *AREA_RUNS, *SPLIT_RUNS]
-GROUPS = ("feedback", "natmix", "area", "split")
+# ④-3 눈금은 c가 아니라 b로 — b는 z에 더해지는 상수라 hazard 안에서 순위를 바꾸지
+# 않는다. fixed의 prior 순위를 그대로 두고 확률 수준만 옮길 수 있다.
+# 중심화는 b가 흡수하는 재매개변수화라 둘이 같은 답에 가야 정상이다.
+BONLY_RUNS = [
+    Run("J", "b만 학습", "bonly", "followup3-area-avg-b-only", needs_area=True,
+        note="a=1 c=1 고정, b만 학습 [-12,12]. log k 원값"),
+    Run("K", "b만 학습+중심화", "bonly", "followup3-area-avg-b-only-ctr", needs_area=True,
+        note="같은 조건에 log k 평균 중심화. J와 같은 답에 가야 정상"),
+]
+
+RUNS: list[Run] = [*FEEDBACK_RUNS, *NATMIX_RUNS, *AREA_RUNS, *SPLIT_RUNS, *BONLY_RUNS]
+GROUPS = ("feedback", "natmix", "area", "split", "bonly")
 
 
 def sh(cmd: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess:

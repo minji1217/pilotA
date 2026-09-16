@@ -185,10 +185,53 @@ const MSE_LS = [0.1525,0.1498,0.1470,0.1275,0.1242,
     "회귀·likelihood 파라미터 44개는 모든 조건에서 학습한다. 표의 ‘학습’은 prior의 a·b·c 중 학습 개수다.", INK3);
 }
 
+/* ══════════ 4-2. 전체 결과 한 장 — 자기 prior vs posterior ══════════ */
+const NL = "\n";   // 줄바꿈을 문자열에 직접 넣으면 소스가 깨져서 상수로 둔다
+const ZP_LS   = [0.8778,0.8778,0.8778,0.9023,0.9023,0.8850,0.8850,0.8969,0.8776,0.8967,0.8373,0.8850,0.8850,0.8850,0.8850];
+const POST_LS = [0.7925,0.8426,0.8405,0.8638,0.8646,0.8607,0.8496,0.8812,0.8490,0.8435,0.8379,0.8646,0.8620,0.8650,0.8466];
+const ZP_LQ   = [0.7154,0.7154,0.8372,0.7154,0.8372,0.7698,0.7698,0.7709,0.7784,0.7570,0.7687,0.7570,0.7725,0.7547,0.7698];
+const POST_LQ = [0.7504,0.7663,0.7753,0.7663,0.7753,0.7812,0.7871,0.7813,0.7814,0.7914,0.7681,0.7905,0.7955,0.7732,0.8100];
+
+function pairSlide(kicker, title, dek, zp, post, col, capt, noteT, noteB) {
+  const s = slideBase(false);
+  head(s, kicker, title, false);
+  s.addText(dek, { x: M, y: 1.78, w: 11.6, h: 0.34, isTextBox: true, margin: 0,
+    fontFace: KR, fontSize: 13, color: INK2 });
+  s.addChart(pres.ChartType.bar, [
+    { name: "자기 prior", labels: NAMES, values: zp },
+    { name: "posterior",  labels: NAMES, values: post },
+  ], {
+    x: M, y: 2.2, w: 8.0, h: 4.6, barDir: "bar", barGrouping: "clustered", barGapWidthPct: 25,
+    chartColors: [PRIOR, col], ...chartFrame(), showLegend: true, legendPos: "t",
+    legendFontFace: KR, legendFontSize: 11, legendColor: INK2,
+    showValue: true, dataLabelPosition: "outEnd", dataLabelFormatCode: "0.000",
+    valAxisMinVal: 0.5, valAxisMaxVal: 1.0, valAxisLabelFormatCode: "0.0",
+  });
+  s.addText(capt, { x: M, y: 6.85, w: 8.0, h: 0.3, isTextBox: true, margin: 0, align: "center",
+    fontFace: KR, fontSize: 10.5, color: INK3 });
+  note(s, 8.85, 2.2, 3.85, 4.6, noteT, noteB, col);
+}
+
+pairSlide("03", "전체 결과 한 장 — 산사태 LS",
+  "회색이 자기 prior 단독, 색이 posterior다. 색 막대가 회색보다 짧으면 피해 데이터가 오히려 깎았다는 뜻이다.",
+  ZP_LS, POST_LS, LS, "가중평균 AUC · 가로축은 0.5(무작위)에서 시작",
+  "15개 중 14개가 짧다",
+  "posterior가 자기 prior를 넘은 것은 F 하나뿐이고 그마저 +0.0005다." + NL + NL +
+  "4·5번은 자연+혼재 GT라 prior 기준선이 0.878 → 0.902로 함께 올라간다." + NL + NL +
+  "비교 쌍이 32,865개로 16배 늘었는데도 방향이 바뀌지 않았다.");
+
+pairSlide("04", "전체 결과 한 장 — 액상화 LQ",
+  "같은 방식으로 LQ를 본다. 이쪽은 방향이 반대다.",
+  ZP_LQ, POST_LQ, LQ, "가중평균 AUC · 가로축은 0.5(무작위)에서 시작",
+  "대부분 posterior가 더 길다",
+  "LQ에서는 13개 조건이 자기 prior를 넘는다(+0.003 ~ +0.040). J가 +0.040으로 1위다." + NL + NL +
+  "예외는 3·5번(LQ 최대집계)과 F다. 3·5번은 prior가 0.837로 가장 좋은데 posterior가 0.775에 그쳐 −0.062로 가장 크게 깎는다." + NL + NL +
+  "좋아진 prior를 모델이 오히려 망가뜨린다.");
+
 /* ══════════ 5. LS 보탠 양 ══════════ */
 {
   const s = slideBase(false);
-  head(s, "03", "피해 데이터가 LS에 보탠 양", false);
+  head(s, "05", "피해 데이터가 LS에 보탠 양", false);
   s.addText("posterior AUC − 자기 prior AUC (가중평균). 0보다 커야 피해 데이터가 보탠 것이 있다.", {
     x: M, y: 1.78, w: 11.6, h: 0.32, isTextBox: true, margin: 0, fontFace: KR, fontSize: 13, color: INK2 });
 
@@ -211,7 +254,7 @@ const MSE_LS = [0.1525,0.1498,0.1470,0.1275,0.1242,
 /* ══════════ 6. c = 1 은 확률을 부풀린다 ══════════ */
 {
   const s = slideBase(false);
-  head(s, "04", "c = 1 은 확률을 부풀린다 — 두 hazard 모두", false);
+  head(s, "06", "c = 1 은 확률을 부풀린다 — 두 hazard 모두", false);
   s.addText("USGS 값 p̄는 칸 면적 중 덮일 비율이다. 칸이 독립이면 λ = p̄ × k 이고 순위가 같은 log λ 를 쓴다.\n그래서 c = 1이 유도식 그대로다 — 그런데 그 독립 가정이 맞지 않는다.", {
     x: M, y: 1.78, w: 11.6, h: 0.6, isTextBox: true, margin: 0, fontFace: KR, fontSize: 13, color: INK2, lineSpacing: 19 });
 
@@ -240,7 +283,7 @@ const MSE_LS = [0.1525,0.1498,0.1470,0.1275,0.1242,
 /* ══════════ 7. b를 학습하면 교정된다 ══════════ */
 {
   const s = slideBase(false);
-  head(s, "05", "b를 학습하면 교정된다", false);
+  head(s, "07", "b를 학습하면 교정된다", false);
   s.addText("b는 z에 더해지는 상수라 hazard 안에서 순위를 바꾸지 않고 확률 수준만 옮긴다. 중심화까지 적용하니 제 역할을 한다.", {
     x: M, y: 1.78, w: 11.6, h: 0.32, isTextBox: true, margin: 0, fontFace: KR, fontSize: 13, color: INK2 });
 
@@ -265,7 +308,7 @@ const MSE_LS = [0.1525,0.1498,0.1470,0.1275,0.1242,
 /* ══════════ 8. 전체 결과 표 ══════════ */
 {
   const s = slideBase(false);
-  head(s, "06", "전체 결과 15개 조건", false);
+  head(s, "08", "전체 결과 15개 조건", false);
   const rows = [
     ["1","3번 b4","a·b","—","—","0.7925","−0.085","0.1525","+0.063","0.7504","+0.035","0.2280"],
     ["2","3번 b10","a·b","—","—","0.8426","−0.035","0.1498","+0.084","0.7663","+0.051","0.2428"],
@@ -306,7 +349,7 @@ const MSE_LS = [0.1525,0.1498,0.1470,0.1275,0.1242,
 /* ══════════ 9. ③ 자연+혼재 ══════════ */
 {
   const s = slideBase(false);
-  head(s, "07", "③ 자연+혼재는 여전히 유효하다", false);
+  head(s, "09", "③ 자연+혼재는 여전히 유효하다", false);
   s.addText("USGS 산사태 사전모형이 설명하는 것은 자연사면의 붕괴인데, GT의 양성에는 성토·옹벽·법면 같은\n인공사면 붕괴가 섞여 있었다. 평가 집합을 고친 뒤에도 이 결론은 그대로다.", {
     x: M, y: 1.78, w: 11.6, h: 0.6, isTextBox: true, margin: 0, fontFace: KR, fontSize: 13, color: INK2, lineSpacing: 19 });
 
@@ -335,7 +378,7 @@ const MSE_LS = [0.1525,0.1498,0.1470,0.1275,0.1242,
 /* ══════════ 10. 어느 조건을 쓸 것인가 ══════════ */
 {
   const s = slideBase(false);
-  head(s, "08", "어느 조건을 쓸 것인가 — 트레이드오프다", false);
+  head(s, "10", "어느 조건을 쓸 것인가 — 트레이드오프다", false);
   s.addText("네 지표를 모두 통과하는 조건은 없다. LS 보탠양이 양수인 것이 F뿐이고 F는 나머지가 최악이기 때문이다.\n그 지표를 빼고 보면 셋이 갈린다.", {
     x: M, y: 1.78, w: 11.6, h: 0.6, isTextBox: true, margin: 0, fontFace: KR, fontSize: 13, color: INK2, lineSpacing: 19 });
 
@@ -371,7 +414,7 @@ const MSE_LS = [0.1525,0.1498,0.1470,0.1275,0.1242,
 /* ══════════ 11. 한계와 다음 ══════════ */
 {
   const s = slideBase(true);
-  head(s, "09", "한계와 다음", true);
+  head(s, "11", "한계와 다음", true);
   const items = [
     ["LS에서 피해 데이터가 보태는 것이 없다", "15개 중 14개가 자기 prior보다 낮다. 왜 그런지가 다음 연구의 중심이어야 한다.", LS],
     ["c_LS도 1보다 낮춰야 한다", "E(c=0.5)의 편향 −0.097과 A(c=1)의 +0.436 사이에 최적값이 있다. c_LS × c_LQ를 0.5~1 구간에서 훑는 실험이 다음 순서다.", WARN],

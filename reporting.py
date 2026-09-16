@@ -93,6 +93,8 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
 
     # Prior는 mode에 따라 파라미터 이름과 변환이 달라진다.
     mode = getattr(pri, "mode", "free")
+    # AreaPrior의 "-ctr" 접미사는 중심화 여부일 뿐 c 구조는 앞부분이 정한다.
+    base_mode = getattr(pri, "base_mode", mode)
     # 후속실험 3의 AreaPrior는 c가 있고 모드 이름이 기존 Prior와 겹치므로 먼저 가른다.
     is_area = hasattr(pri, "c_value")
     if is_area:
@@ -101,9 +103,19 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
                 ("pri", "_a_raw", "a", [0, 1], ["LS", "LQ"], f"bounded[{pri.A_MIN},{pri.A_MAX}]"),
                 ("pri", "_b_raw", "b", [0, 1], ["LS", "LQ"], f"bounded[{pri.B_MIN},{pri.B_MAX}]"),
             ]
-        if mode == "free":
+        elif getattr(pri, "learn_b_only", False):
+            # a와 c는 고정이고 b만 학습한다.
+            spec += [
+                ("pri", "_b_raw", "b", [0, 1], ["LS", "LQ"], f"bounded[{pri.B_MIN},{pri.B_MAX}]"),
+            ]
+        if base_mode == "free":
             spec += [
                 ("pri", "_c_raw", "c", [0, 1], ["LS", "LQ"], f"bounded[{pri.C_MIN},{pri.C_MAX}]"),
+            ]
+        elif getattr(pri, "learn_c_lq", False):
+            # c_LS는 고정이라 아래 고정행으로 가고, 학습하는 것은 c_LQ 하나뿐이다.
+            spec += [
+                ("pri", "_c_lq_raw", "c", [1], ["LQ"], f"bounded[{pri.C_MIN},{pri.C_MAX}]"),
             ]
     elif mode == "free":
         spec += [
@@ -132,8 +144,11 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
             val = F.softplus(raw)
         elif transform.startswith("bounded"):
             # prior의 a, b는 sigmoid 재파라미터화라 raw와 실제 값이 다르다.
+            c_val = getattr(pri, "c_value", None)
             val = {"_a_raw": pri.a_value, "_b_raw": pri.b_value,
-                   "_c_raw": getattr(pri, "c_value", None)}[pname].detach()
+                   "_c_raw": c_val,
+                   # c_LQ만 학습하는 모드는 값도 LQ 한 칸만 꺼낸다.
+                   "_c_lq_raw": None if c_val is None else c_val[1:]}[pname].detach()
         else:
             val = raw
 
@@ -163,15 +178,26 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
     if is_area:
         # 학습하지 않는 a, b, c도 어떤 값이 쓰였는지 남겨야 재현이 된다.
         fixed = []
-        if not pri.learn_ab:
-            fixed += [("a", pri.a_value, f"fixed(area={mode})"),
-                      ("b", pri.b_value, f"fixed(area={mode})")]
-        if mode == "tied":
-            fixed.append(("c", pri.c_value, "tied(c=a)"))
-        elif mode != "free":
-            fixed.append(("c", pri.c_value, f"fixed(area={mode})"))
-        for group, vals, transform in fixed:
-            for i, lab in enumerate(["LS", "LQ"]):
+        if getattr(pri, "learn_b_only", False):
+            # b는 위에서 학습행으로 들어갔다. a만 고정행이다.
+            fixed += [("a", pri.a_value, f"fixed(area={mode})", ["LS", "LQ"])]
+        elif not pri.learn_ab:
+            fixed += [("a", pri.a_value, f"fixed(area={mode})", ["LS", "LQ"]),
+                      ("b", pri.b_value, f"fixed(area={mode})", ["LS", "LQ"])]
+        if base_mode == "tied":
+            fixed.append(("c", pri.c_value, "tied(c=a)", ["LS", "LQ"]))
+        elif getattr(pri, "learn_c_lq", False):
+            # c_LQ는 학습 파라미터라 위에서 기록됐다. 여기서는 고정된 c_LS만 남긴다.
+            fixed.append(("c", pri.c_value, f"fixed(area={mode})", ["LS"]))
+        elif base_mode != "free":
+            fixed.append(("c", pri.c_value, f"fixed(area={mode})", ["LS", "LQ"]))
+        # 중심화 모드는 실제로 뺀 값을 남겨야 재현이 된다.
+        center = getattr(pri, "log_k_center", None)
+        if center is not None and float(center.abs().sum()) > 0:
+            fixed.append(("log_k_center", center, f"fixed(area={mode})", ["LS", "LQ"]))
+
+        for group, vals, transform, labels in fixed:
+            for i, lab in enumerate(labels):
                 v = float(vals.detach()[i])
                 rows.append({
                     "module": "pri", "group": group, "param": group,

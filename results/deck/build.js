@@ -329,60 +329,49 @@ s.addText("믿을 만한 3개 지진만 보면 A2(0.8437)와 B0(0.8406)이 사�
   {x:0.7,y:6.78,w:11.95,h:0.3,fontSize:10.5,color:MUTED,italic:true,fontFace:B,isTextBox:true,margin:0});
 s.addNotes("LQ는 표본이 튼튼하지만, 조건 간 차이는 LS만큼 크지 않다. 정직하게 쪼개 보면 B0의 우위는 노이즈가 큰 소규모 지진에서 나온다.");
 
-/* ───────────────────────── 12. 사후 탐색 ───────────────────────── */
+/* ───────────── 12. 사후 탐색 (b_LQ + 중심화 합본) ───────────── */
 s=pres.addSlide(); s.background={color:WHITE};
-title(s,"사후 탐색 — b_LQ 고정을 풀면","사전등록 조건표 밖의 실험이며 판정 대상이 아니다");
-s.addShape(pres.ShapeType.roundRect,{x:0.7,y:1.72,w:11.95,h:0.95,rectRadius:0.09,fill:{color:SAND},line:{color:LINE,width:0.5}});
-s.addText("문제 — log k_LQ의 평균이 6.7쯤이라 q_LQ가 통째로 밀려 올라간다. 중앙값 0.9188인데 실제 LQ 발생률은 229행 중 0.476이다. b_LQ가 0으로 고정돼 수준을 잡을 수단이 없었다.",
-  {x:1.0,y:1.92,w:11.35,h:0.6,fontSize:12,color:INK,lineSpacing:16,fontFace:B,isTextBox:true,margin:0});
-const comp=[["LQ 사전 가중 AUC","0.7698","0.7698","변화 없음 (예측대로)",false],
-            ["LQ 사후 가중 AUC","0.7812","0.8158","+0.0346",true],
-            ["LQ MSE (사후)","0.2497","0.2399","−0.0098",true],
-            ["LQ BCE (사전)","0.8760","0.7257","−0.1503",true],
-            ["q_LQ 중앙값","0.9145","0.1485","실제 발생률 0.476",false],
-            ["LS 사전 가중 AUC","0.8400","0.8400","완전히 동일 (0.00e+00)",false],
-            ["LS 사후 가중 AUC","0.8550","0.8529","−0.0021",false]];
-tbl(s,[[hdr("지표"),hdr("B0  (b_LQ = 0 고정)"),hdr("C0  (b_LQ 학습, b_LQ = −4.12)"),hdr("변화")]]
- .concat(comp.map(r=>[r[0],r[1],{text:r[2],options:{bold:true}},
-   {text:r[3],options:{color:r[4]?SAGE:MUTED,bold:r[4]}}])),
- {x:0.7,y:2.86,w:8.0,colW:[2.15,1.95,2.25,1.65],rowH:0.355,fontSize:10.5,align:"center"});
-card(s,8.95,2.86,3.7,2.85);
-s.addText("왜 순위는 그대로인가",{x:9.23,y:3.06,w:3.15,h:0.3,fontSize:12.5,bold:true,color:INK,fontFace:H,isTextBox:true,margin:0});
-s.addText("b_LQ는 모든 행에 더해지는 같은 상수다. 상수를 더해도 순위는 바뀌지 않으므로 prior AUC가 0.7698 그대로다.\n\n그런데 4상태 가중치가 제대로 잡히면서 사후 AUC가 올랐다. 확률 수준만 고쳤는데 사후 순위가 좋아진 것이다.",
-  {x:9.23,y:3.46,w:3.15,h:2.1,fontSize:11,color:MUTED,lineSpacing:15,fontFace:B,isTextBox:true,margin:0});
-s.addShape(pres.ShapeType.roundRect,{x:0.7,y:6.1,w:8.0,h:0.8,rectRadius:0.09,fill:{color:DARK},line:{color:DARK,width:0}});
-s.addText("짝지은 부트스트랩 3,000회 — C0 − B0 = +0.0342,  95% 구간 [+0.0009, +0.0698],  P(차이 > 0) = 0.978",
-  {x:1.0,y:6.3,w:7.4,h:0.42,fontSize:11,bold:true,color:WHITE,fontFace:B,isTextBox:true,margin:0});
-s.addNotes("결과를 보고 나온 아이디어이므로 판정표에 섞지 않고 별도 파일로 분리했다. 다만 예측이 명확했고 그대로 맞았다.");
+title(s,"사후 탐색 — 사전등록 조건표 밖","결과를 본 뒤에 확인한 두 가지다. §5 판정에는 반영하지 않았다");
 
-/* ─────────────── 12-2. log k 중심화 ─────────────── */
-s=pres.addSlide(); s.background={color:WHITE};
-title(s,"매개변수화 점검 — log k에서 평균을 뺄 것인가","b를 학습하는 채널에서만 뺀다. b를 고정한 채널에서 빼면 유도식이 깨진다");
-s.addShape(pres.ShapeType.roundRect,{x:0.7,y:1.7,w:5.85,h:1.5,rectRadius:0.09,fill:{color:"EDF2EE"},line:{color:SAGE,width:1.25}});
-s.addText("b를 학습하는 채널 → 뺀다",{x:1.0,y:1.9,w:5.3,h:0.32,fontSize:13,bold:true,color:SAGE,fontFace:H,isTextBox:true,margin:0});
-s.addText("b가 '평균 크기 시정촌에서의 log-odds'라는 뜻을 갖고, b와 log k의 상관이 줄어 최적화가 안정된다.",
-  {x:1.0,y:2.3,w:5.3,h:0.75,fontSize:11.5,color:MUTED,lineSpacing:15,fontFace:B,isTextBox:true,margin:0});
-s.addShape(pres.ShapeType.roundRect,{x:6.8,y:1.7,w:5.85,h:1.5,rectRadius:0.09,fill:{color:"F9EAE7"},line:{color:TERRA,width:1.25}});
-s.addText("b = 0 고정인 채널 → 빼면 안 된다",{x:7.1,y:1.9,w:5.3,h:0.32,fontSize:13,bold:true,color:TERRA,fontFace:H,isTextBox:true,margin:0});
-s.addText("재매개변수화가 아니라 다른 모형이 된다. 안 뺀 z = log(π̄ · k) = log λ 가 유도식 그 자체다. B0이 여기 해당한다.",
-  {x:7.1,y:2.3,w:5.3,h:0.75,fontSize:11.5,color:MUTED,lineSpacing:15,fontFace:B,isTextBox:true,margin:0});
-s.addText("확인 — b 상자를 [−12, 20]으로 똑같이 열고 센터링 유/무를 비교했다",
-  {x:0.7,y:3.36,w:11.95,h:0.3,fontSize:12.5,bold:true,color:INK,fontFace:B,isTextBox:true,margin:0});
+s.addShape(pres.ShapeType.ellipse,{x:0.7,y:1.68,w:0.34,h:0.34,fill:{color:TERRA},line:{color:TERRA,width:0}});
+s.addText("1",{x:0.7,y:1.68,w:0.34,h:0.34,fontSize:13,bold:true,color:WHITE,align:"center",valign:"middle",fontFace:H,isTextBox:true,margin:0});
+s.addText("b_LQ 고정을 푼다",{x:1.16,y:1.66,w:5.3,h:0.34,fontSize:15,bold:true,color:INK,fontFace:H,isTextBox:true,margin:0});
+s.addText("log k_LQ 평균이 6.66이라 q_LQ가 통째로 밀려 중앙값 0.9145가 된다. 실제 액상화 발생률은 229행 중 0.476이다.",
+  {x:0.7,y:2.06,w:5.75,h:0.56,fontSize:11,color:MUTED,lineSpacing:14,fontFace:B,isTextBox:true,margin:0});
 tbl(s,[
- [hdr("조건"),hdr("센터링"),hdr("뺀 값 off_LS / off_LQ"),hdr("b_LS 유효수준"),hdr("b_LQ 유효수준"),hdr("κ"),hdr("LS 사후"),hdr("LQ 사후")],
- ["B1","한다","8.0422 / 0","−2.4362","0","−0.8395","0.7285","0.7796"],
- ["B1","안 한다","0 / 0","−2.4309","0","−0.8386","0.7285","0.7796"],
- ["C0","한다","0 / 6.6559","0","−4.1139","—","0.8529","0.8158"],
- ["C0","안 한다","0 / 0","0","−4.1186","—","0.8529","0.8158"],
- ["B2","한다","8.0422 / 0","−0.2946","0","−0.1462","0.8507","0.7807"],
- ["B2","안 한다","0 / 0","−0.2955","0","−0.1461","0.8507","0.7806"]],
- {x:0.7,y:3.76,w:11.95,colW:[1.0,1.15,2.5,1.85,1.85,1.3,1.15,1.15],rowH:0.335,fontSize:10.5,align:"center"});
-s.addShape(pres.ShapeType.roundRect,{x:0.7,y:5.88,w:11.95,h:1.0,rectRadius:0.09,fill:{color:DARK},line:{color:DARK,width:0}});
-s.addText("최적해는 같다 — 소수 셋째 자리까지 일치한다. 차이는 b의 해석과 조건수뿐이다.",
-  {x:1.0,y:6.05,w:11.35,h:0.32,fontSize:13,bold:true,color:TERRA,fontFace:H,isTextBox:true,margin:0});
-s.addText("단, 상자를 함께 열어야 한다. 기존 상자 [−2, 4]는 실제로 걸리고 있었고(B1의 b_LS가 하한 −2에 붙음), 센터링하면 LS는 b가 +8.21까지 가야 하는데 상한 4에 닿지 못한다.",
-  {x:1.0,y:6.42,w:11.35,h:0.34,fontSize:11,color:"CFC4BC",fontFace:B,isTextBox:true,margin:0});
-s.addNotes("센터링은 성능을 바꾸는 장치가 아니라 해석과 수치 안정성을 위한 매개변수화 선택이다. 상자가 걸리지 않는다는 전제에서만 최적해가 같다.");
+ [hdr("지표"),hdr("B0  b_LQ=0"),hdr("C0  b_LQ 학습")],
+ ["LQ 사전 가중","0.7698",{text:"0.7698",options:{color:MUTED}}],
+ ["LQ 사후 가중","0.7812",{text:"0.8158",options:{bold:true,color:SAGE}}],
+ ["LQ MSE (사후)","0.2497",{text:"0.2399",options:{bold:true,color:SAGE}}],
+ ["q_LQ 중앙값","0.9145",{text:"0.1485",options:{bold:true}}],
+ ["LS 사전 가중","0.8400",{text:"0.8400",options:{color:MUTED}}],
+ ["LS 사후 가중","0.8550",{text:"0.8529",options:{color:MUTED}}]],
+ {x:0.7,y:2.72,w:5.75,colW:[1.95,1.85,1.95],rowH:0.315,fontSize:10.5,align:"center"});
+s.addText("사전 순위는 두 지표 모두 그대로다. b_LQ는 모든 행에 더해지는 같은 상수라 순위를 못 바꾼다. 확률 수준만 고쳤는데 사후가 올랐다.",
+  {x:0.7,y:5.0,w:5.75,h:0.62,fontSize:11,color:INK,lineSpacing:14,fontFace:B,isTextBox:true,margin:0});
+
+s.addShape(pres.ShapeType.ellipse,{x:6.9,y:1.68,w:0.34,h:0.34,fill:{color:SAGE},line:{color:SAGE,width:0}});
+s.addText("2",{x:6.9,y:1.68,w:0.34,h:0.34,fontSize:13,bold:true,color:WHITE,align:"center",valign:"middle",fontFace:H,isTextBox:true,margin:0});
+s.addText("log k에서 평균을 뺀다(중심화)",{x:7.36,y:1.66,w:5.3,h:0.34,fontSize:15,bold:true,color:INK,fontFace:H,isTextBox:true,margin:0});
+s.addText("b를 학습하는 채널에서만 뺀다. b를 고정한 채널에서 빼면 z = log(π̄·k) = log λ 라는 유도식이 깨진다 — B0이 그렇다.",
+  {x:6.9,y:2.06,w:5.75,h:0.56,fontSize:11,color:MUTED,lineSpacing:14,fontFace:B,isTextBox:true,margin:0});
+tbl(s,[
+ [hdr("조건"),hdr("중심화"),hdr("b 유효수준"),hdr("LS 사후"),hdr("LQ 사후")],
+ ["B1","한다","−2.4362","0.7285","0.7796"],
+ ["B1","안 한다","−2.4309","0.7285","0.7796"],
+ ["C0","한다","−4.1139","0.8529","0.8158"],
+ ["C0","안 한다","−4.1186","0.8529","0.8158"],
+ ["B2","한다","−0.2946","0.8507","0.7807"],
+ ["B2","안 한다","−0.2955","0.8507","0.7806"]],
+ {x:6.9,y:2.72,w:5.75,colW:[0.85,1.2,1.5,1.1,1.1],rowH:0.315,fontSize:10.5,align:"center"});
+s.addText("최적해가 같다 — 소수 셋째 자리까지 일치한다. 차이는 b의 해석과 조건수뿐이다. 단 상자를 함께 열어야 한다.",
+  {x:6.9,y:5.0,w:5.75,h:0.62,fontSize:11,color:INK,lineSpacing:14,fontFace:B,isTextBox:true,margin:0});
+
+s.addShape(pres.ShapeType.roundRect,{x:0.7,y:5.76,w:11.95,h:1.12,rectRadius:0.09,fill:{color:DARK},line:{color:DARK,width:0}});
+s.addText("정리",{x:1.0,y:5.94,w:0.85,h:0.3,fontSize:12,bold:true,color:TERRA,fontFace:B,isTextBox:true,margin:0});
+s.addText("① b_LQ 해제는 LQ를 0.7812 → 0.8158로 올렸다 (짝지은 부트스트랩 3,000회, P = 0.978).   ② 중심화는 성능을 바꾸는 장치가 아니라 해석·수치 안정성을 위한 매개변수화 선택이다.\n기존 상자 [−2, 4]는 실제로 걸리고 있었고(B1의 b_LS가 하한 −2에 붙음), 중심화하면 LS는 b가 +8.21까지 가야 해 상한 4에 닿지 못한다. 켤 때는 상자도 함께 연다.",
+  {x:2.05,y:5.92,w:10.3,h:0.82,fontSize:10.5,color:"CFC4BC",lineSpacing:14,fontFace:B,isTextBox:true,margin:0});
+s.addNotes("두 가지 모두 결과를 본 뒤에 나온 아이디어라 §5 판정표에는 섞지 않고 별도 파일(results/posthoc, results/centering)로 분리했다. 정식 조건으로 올리려면 조건을 미리 고정한 새 지시서가 필요하다.");
 
 /* ───────────────────────── 13. 권고 ───────────────────────── */
 s=pres.addSlide(); s.background={color:DARK};

@@ -63,6 +63,12 @@ def run_point(batch, eval_gt, gt_df, *, c_ls, c_lq, lam, epochs, seed):
         p_ls, p_lq = infer(log_joint, log_Py)
 
     r = evaluate(gt_df, to_eval_pred(batch, p_ls, p_lq, eval_gt, pri=pri))
+
+    # 행별 예측을 남겨 둔다. 정답 규칙이 바뀌어도 다시 학습하지 않고 채점만 다시 할 수 있다.
+    (OUT_DIR / "pred").mkdir(parents=True, exist_ok=True)
+    r.merged.sort_values(["event_idx", "muni_code"]).to_csv(
+        OUT_DIR / "pred" / f"detail_cls{c_ls}_clq{c_lq}.csv", index=False, encoding="utf-8-sig")
+
     return {
         "c_ls": c_ls, "c_lq": c_lq, "lam_gamma": lam,
         "ls_prior": r.auc_zprior_ls_wavg, "ls_post": r.auc_ls_wavg,

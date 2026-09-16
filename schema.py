@@ -198,6 +198,35 @@ MOUNTAIN_RATIO_COLUMN: str = "mountain_ratio"
 
 
 # ============================================================
+# 6-1. LS GT 사면 종별 (후속실험 3-③ 자연+혼재 재평가)
+# ============================================================
+
+# USGS 산사태 사전모델(Nowicki Jessee 2018)이 설명하는 것은 자연사면의 붕괴다.
+# GT의 ls_flag=1에는 성토·옹벽·법면 같은 인공사면 붕괴가 섞여 있어, 모델이
+# 맞힐 수 없는 사건까지 양성으로 세게 된다. 자연+혼재만 양성으로 두고 다시 재면
+# 그 차이가 성능 차이인지 GT 정의 차이인지 갈라 볼 수 있다.
+#
+# 값은 LS 시트의 ls_type 컬럼에 들어 있다. ls_flag=0 / NA 행은 판정 대상이
+# 아니므로 ls_type도 NA다.
+GT_LS_TYPE_COLUMN: str = "ls_type"
+
+LS_TYPE_NATURAL: str = "자연"
+LS_TYPE_MIXED: str = "혼재"
+LS_TYPE_UNKNOWN: str = "불명"
+
+# 자연+혼재 재평가에서 양성으로 세는 종별
+LS_TYPE_POSITIVE: frozenset[str] = frozenset({LS_TYPE_NATURAL, LS_TYPE_MIXED})
+
+# GT 변형. "all"은 기존 정의 그대로, "natmix"는 자연+혼재만 양성.
+LS_GT_VARIANTS: tuple[str, ...] = ("all", "natmix")
+
+# ls_type=불명(자료에 사면 종별 기술이 없음)을 어떻게 다룰지.
+#   "exclude"  : 평가에서 제외한다(기본). 인공이 아니라고 단정할 근거가 없다.
+#   "negative" : 0으로 센다.
+LS_UNKNOWN_POLICIES: tuple[str, ...] = ("exclude", "negative")
+
+
+# ============================================================
 # 7. USGS 컬럼명
 # ============================================================
 

@@ -212,10 +212,21 @@ GT_LS_TYPE_COLUMN: str = "ls_type"
 
 LS_TYPE_NATURAL: str = "자연"
 LS_TYPE_MIXED: str = "혼재"
+LS_TYPE_ARTIFICIAL: str = "인공"
 LS_TYPE_UNKNOWN: str = "불명"
 
 # 자연+혼재 재평가에서 양성으로 세는 종별
 LS_TYPE_POSITIVE: frozenset[str] = frozenset({LS_TYPE_NATURAL, LS_TYPE_MIXED})
+
+# 인공사면에서만 붕괴한 행. 재평가의 질문은 "자연 산사태가 났는가"이므로
+# 평가에서 빼는 것이 아니라 음성(0)으로 센다. 모델이 낮게 찍었다면 맞힌 것이다.
+# 이 행들을 빼 버리면 정답이 음성인 사례를 잃어 AUC가 부풀려진다.
+LS_TYPE_NEGATIVE: frozenset[str] = frozenset({LS_TYPE_ARTIFICIAL})
+
+# ls_flag=1(또는 ls_area_ha>0)인 행에 올 수 있는 값 전부
+LS_TYPE_KNOWN: frozenset[str] = (
+    LS_TYPE_POSITIVE | LS_TYPE_NEGATIVE | frozenset({LS_TYPE_UNKNOWN})
+)
 
 # GT 변형. "all"은 기존 정의 그대로, "natmix"는 자연+혼재만 양성.
 LS_GT_VARIANTS: tuple[str, ...] = ("all", "natmix")

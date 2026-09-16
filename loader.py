@@ -31,6 +31,8 @@ from schema import (
     CHANNELS,
     GT_LS_TYPE_COLUMN,
     LS_GT_VARIANTS,
+    LS_TYPE_KNOWN,
+    LS_TYPE_NEGATIVE,
     LS_TYPE_POSITIVE,
     LS_TYPE_UNKNOWN,
     LS_UNKNOWN_POLICIES,
@@ -781,8 +783,15 @@ def _apply_ls_type_variant(
     음성 그대로 두고, ls_flag=NA는 이미 평가에서 빠져 있다.
 
         자연 / 혼재 -> 양성 유지
+        인공        -> 음성(0). 평가에서 빼지 않는다. 재평가의 질문이
+                       "자연 산사태가 났는가"이므로 인공사면에서만 무너진 곳의
+                       정답은 '아니오'다. 빼 버리면 정답이 음성인 사례를 잃어
+                       AUC가 부풀려진다.
         불명        -> unknown_policy ("exclude" 평가 제외 / "negative" 0으로)
         그 외 값    -> 오류. 조용히 넘기면 정의가 어긋난 채로 숫자가 나온다.
+
+    ls_flag이 없는 이벤트(2004 니가타 등)는 ls_area_ha>0으로 양성이 정해지는데,
+    실제 GT에서 ls_type은 정확히 그 행에만 붙어 있어 두 경로가 같게 동작한다.
     """
     if GT_LS_TYPE_COLUMN not in df.columns:
         raise ValueError(
@@ -802,16 +811,19 @@ def _apply_ls_type_variant(
 
     positive = result["gt_ls"].eq(1) & result["ls_eval_mask"]
 
-    known = ls_type.isin(LS_TYPE_POSITIVE) | ls_type.eq(LS_TYPE_UNKNOWN)
-    bad = positive & ~known
+    bad = positive & ~ls_type.isin(LS_TYPE_KNOWN)
     if bad.any():
         bad_values = sorted(
             ls_type.loc[bad].fillna("<결측>").unique().tolist()
         )
         raise ValueError(
-            f"[{sheet_name}] ls_flag=1인데 {GT_LS_TYPE_COLUMN}가 "
-            f"{sorted(LS_TYPE_POSITIVE)} / '{LS_TYPE_UNKNOWN}' 중 하나가 아닙니다: {bad_values}"
+            f"[{sheet_name}] 양성 행의 {GT_LS_TYPE_COLUMN}가 "
+            f"{sorted(LS_TYPE_KNOWN)} 중 하나가 아닙니다: {bad_values}"
         )
+
+    # 인공사면에서만 무너진 곳은 '자연 산사태 없음'이므로 음성으로 내린다.
+    artificial = positive & ls_type.isin(LS_TYPE_NEGATIVE)
+    result.loc[artificial, "gt_ls"] = 0
 
     unknown = positive & ls_type.eq(LS_TYPE_UNKNOWN)
     if unknown_policy == "exclude":

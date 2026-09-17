@@ -1,0 +1,52 @@
+﻿module,group,param,idx,label,transform,raw_value,value
+reg,alpha_c,alpha_channel,0,사망,none,-19.895635094030183,-19.895635094030183
+reg,alpha_c,alpha_channel,1,중상,none,-15.971657175806172,-15.971657175806172
+reg,alpha_c,alpha_channel,2,경상,none,-12.957510081056679,-12.957510081056679
+reg,alpha_c,alpha_channel,3,전파,none,-13.021485476193849,-13.021485476193849
+reg,alpha_c,alpha_channel,4,반파,none,-12.687240838135523,-12.687240838135523
+reg,alpha_c,alpha_channel,5,일부파손,none,-9.49831327645924,-9.49831327645924
+reg,alpha_e,alpha_event_free,0,2004 니가타현주에쓰,fixed(reference),0.0,0.0
+reg,alpha_e,alpha_event_free,1,2007 니가타현주에쓰오키,none,-0.8318360689186075,-0.8318360689186075
+reg,alpha_e,alpha_event_free,2,2008 이와테미야기,none,-2.6439876222262306,-2.6439876222262306
+reg,alpha_e,alpha_event_free,3,2016 구마모토,none,-1.4939519120146585,-1.4939519120146585
+reg,alpha_e,alpha_event_free,4,2018 오사카,none,-2.7477808776255377,-2.7477808776255377
+reg,alpha_e,alpha_event_free,5,2018 훗카이도,none,-0.9143370881560843,-0.9143370881560843
+reg,alpha_e,alpha_event_free,6,2021 후쿠시마,none,-2.389246330454576,-2.389246330454576
+reg,alpha_e,alpha_event_free,7,2024 노토반도,none,-1.5524833794120865,-1.5524833794120865
+reg,alpha_e,alpha_event_free,8,2000 돗토리,none,-2.6972812436489804,-2.6972812436489804
+reg,beta_c,beta_pgv,0,사망,none,3.2141723385527885,3.2141723385527885
+reg,beta_c,beta_pgv,1,중상,none,2.4122935205728333,2.4122935205728333
+reg,beta_c,beta_pgv,2,경상,none,1.9282762127958193,1.9282762127958193
+reg,beta_c,beta_pgv,3,전파,none,2.408504197235999,2.408504197235999
+reg,beta_c,beta_pgv,4,반파,none,2.8175834998252527,2.8175834998252527
+reg,beta_c,beta_pgv,5,일부파손,none,2.7232057598148116,2.7232057598148116
+reg,delta_c,delta_wood,0,사망,none,0.2085126890405072,0.2085126890405072
+reg,delta_c,delta_wood,1,중상,none,0.2796944005536515,0.2796944005536515
+reg,delta_c,delta_wood,2,경상,none,0.025182133654033562,0.025182133654033562
+reg,delta_c,delta_wood,3,전파,none,0.8546974379474134,0.8546974379474134
+reg,delta_c,delta_wood,4,반파,none,0.5494318929859766,0.5494318929859766
+reg,delta_c,delta_wood,5,일부파손,none,0.21673526963024836,0.21673526963024836
+reg,gamma_LS,_gamma_ls_unconstrained,0,사망,softplus,-0.4765487074643183,0.48299554503693914
+reg,gamma_LS,_gamma_ls_unconstrained,1,중상,softplus,-0.1591270482977437,0.6167454997761856
+reg,gamma_LS,_gamma_ls_unconstrained,2,경상,softplus,-0.20100695765766433,0.5976856967601752
+reg,gamma_LS,_gamma_ls_unconstrained,3,전파,softplus,-1.35003146133766,0.23050209448750486
+reg,gamma_LS,_gamma_ls_unconstrained,4,반파,softplus,-0.8771450274040363,0.34781395940589127
+reg,gamma_LS,_gamma_ls_unconstrained,5,일부파손,softplus,-0.8961977691433172,0.3422543977010388
+reg,gamma_LQ,_gamma_lq_unconstrained,0,사망,softplus,-0.6382201929653759,0.4241113405406705
+reg,gamma_LQ,_gamma_lq_unconstrained,1,중상,softplus,-0.6641012441784665,0.4152411279291705
+reg,gamma_LQ,_gamma_lq_unconstrained,2,경상,softplus,0.07842085205565091,0.7331261384418355
+reg,gamma_LQ,_gamma_lq_unconstrained,3,전파,softplus,-0.8910962284742828,0.3437356702463899
+reg,gamma_LQ,_gamma_lq_unconstrained,4,반파,softplus,-0.2859862588470055,0.5603429173597982
+reg,gamma_LQ,_gamma_lq_unconstrained,5,일부파손,softplus,0.03977336625183103,0.713231590736397
+lik,phi_c,_phi_unconstrained,0,사망,softplus,-0.5565871134541401,0.4530875215336714
+lik,phi_c,_phi_unconstrained,1,중상,softplus,-0.27815083714487054,0.5637117318859013
+lik,phi_c,_phi_unconstrained,2,경상,softplus,-0.3262836865654308,0.5432543523928104
+lik,phi_c,_phi_unconstrained,3,전파,softplus,-1.7483079888603341,0.16047482856582848
+lik,phi_c,_phi_unconstrained,4,반파,softplus,-1.412390959971758,0.2179784299120062
+lik,phi_c,_phi_unconstrained,5,일부파손,softplus,-0.5189727336920213,0.4669562360922975
+pri,a,a,0,LS,fixed(mode=area),1.0,1.0
+pri,a,a,1,LQ,fixed(mode=area),1.0,1.0
+pri,b,_b_raw,0,LS,"bounded[-2.0,4.0]",-1.0645824144776923,-0.46139165801782633
+pri,b,_b_lq_raw,1,LQ,"bounded[-10.0,4.0]",-0.3183905837214178,-4.105047651021966
+pri,c,c,0,LS,fixed(mode=area),1.0,1.0
+pri,c,c,1,LQ,fixed(mode=area),1.0,1.0

@@ -66,7 +66,7 @@ EXPECTED_NUM_PARAMS = 48
 
 # 설계식에 나오는 순서대로 정렬하기 위한 기준
 GROUP_ORDER = ["alpha_c", "alpha_e", "beta_c", "delta_c",
-               "gamma_LS", "gamma_LQ", "phi_c", "a", "b", "c"]
+               "eta_c", "gamma_LS", "gamma_LQ", "phi_c", "a", "b", "c", "kappa"]
 
 
 def dump_params(reg, like, pri, path="outputs/params.csv"):
@@ -90,6 +90,10 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
         ("reg", "_gamma_lq_unconstrained", "gamma_LQ", CHANNEL_IDX,    CHANNEL_LABELS,     "softplus"),
         ("lik", "_phi_unconstrained",      "phi_c",    CHANNEL_IDX,    CHANNEL_LABELS,     "softplus"),
     ]
+
+    if getattr(reg, "use_mtn", False):
+        # 후속실험 4 점검(E6·E7): 피해 회귀식의 산지 항. 부호 제약이 없다.
+        spec.insert(4, ("reg", "eta_mtn", "eta_c", CHANNEL_IDX, CHANNEL_LABELS, "none"))
 
     # Prior는 mode에 따라 파라미터 이름과 변환이 달라진다.
     mode = getattr(pri, "mode", "free")
@@ -117,6 +121,9 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
             spec += [
                 ("pri", "_c_lq_raw", "c", [1], ["LQ"], f"bounded[{pri.C_MIN},{pri.C_MAX}]"),
             ]
+        if getattr(pri, "use_cov_mtn", False):
+            # 후속실험 4: 산지 비율 계수. LS prior에만 있고 범위 제한이 없다.
+            spec += [("pri", "kappa", "kappa", [0], ["LS"], "none")]
     elif mode == "free":
         spec += [
             ("pri", "a", "a", [0, 1], ["LS", "LQ"], "none"),
@@ -139,7 +146,8 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
                 f"실제 이름: {sorted(named[mod_key])}"
             )
 
-        raw = named[mod_key][pname].detach()
+        # kappa처럼 스칼라인 파라미터도 같은 방식으로 돌 수 있게 1차원으로 편다.
+        raw = named[mod_key][pname].detach().reshape(-1)
         if transform == "softplus":
             val = F.softplus(raw)
         elif transform.startswith("bounded"):
@@ -195,6 +203,10 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
         center = getattr(pri, "log_k_center", None)
         if center is not None and float(center.abs().sum()) > 0:
             fixed.append(("log_k_center", center, f"fixed(area={mode})", ["LS", "LQ"]))
+        if getattr(pri, "use_cov_mtn", False):
+            # z_mtn을 학습 행 기준으로 다시 표준화한 평균·표준편차.
+            fixed.append(("mtn_center", pri.mtn_center.reshape(1), f"fixed(area={mode})", ["LS"]))
+            fixed.append(("mtn_scale", pri.mtn_scale.reshape(1), f"fixed(area={mode})", ["LS"]))
 
         for group, vals, transform, labels in fixed:
             for i, lab in enumerate(labels):

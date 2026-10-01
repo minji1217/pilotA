@@ -373,6 +373,15 @@ class PilotABatch:
 
     municipality_code: tuple[str, ...]
 
+    # 후속실험 4: LS 라벨을 학습에 쓰기 위한 값. loader.attach_ls_labels가 채운다.
+    # 채우지 않으면 None이고 기존 조건은 이 값을 쓰지 않는다.
+    #   log_cov_ls    [B] float64  log(판독 범위 비율). 라벨 없는 행·보고서 기반 행은 0
+    #   ls_label      [B] long     GSI 라벨 0/1. 라벨 없는 행은 placeholder 0
+    #   ls_label_mask [B] bool     라벨이 있는 행
+    log_cov_ls: Tensor | None = None
+    ls_label: Tensor | None = None
+    ls_label_mask: Tensor | None = None
+
 
     @property
     def batch_size(self) -> int:

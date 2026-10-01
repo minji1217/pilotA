@@ -161,6 +161,7 @@ class DamageRegression(nn.Module):
         *,
         reference_event_idx: int = 0,
         gamma_init: float = 0.1,
+        use_mtn: bool = False,
     ) -> None:
         """
         회귀모형 파라미터를 생성한다.
@@ -211,6 +212,12 @@ class DamageRegression(nn.Module):
 
         self.reference_event_idx = int(reference_event_idx)
         self.gamma_init = float(gamma_init)
+
+        # 후속실험 4 점검(E6·E7): 피해 회귀식에 η_c·z_mtn을 다시 넣을지.
+        # 산지가 산사태를 거치지 않고 피해로 가는 길이다. 기본은 넣지 않는다(교수님 9/26 지시).
+        self.use_mtn = bool(use_mtn)
+        if self.use_mtn:
+            self.eta_mtn = nn.Parameter(torch.zeros(NUM_CHANNELS, dtype=DTYPE))
 
         # ----------------------------------------------------
         # alpha_c
@@ -487,6 +494,9 @@ class DamageRegression(nn.Module):
 
         self.delta_wood.zero_()
 
+        if self.use_mtn:
+            self.eta_mtn.zero_()
+
         # gamma 역시 initialize_from_batch() 호출 시
         # 항상 gamma_init 값으로 다시 초기화되도록 한다.
         gamma_unconstrained_init = _inverse_softplus(
@@ -702,6 +712,8 @@ class DamageRegression(nn.Module):
             + event_effect
             + pgv_effect * log_pgv
             + wood_effect * z_wood
+            + (self.eta_mtn.view(1, 1, NUM_CHANNELS) * batch.z_mtn.view(B, 1, 1)
+               if self.use_mtn else 0.0)
             + gamma_ls * ls_state
             + gamma_lq * lq_state
         )

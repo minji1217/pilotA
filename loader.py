@@ -25,6 +25,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Iterable
 
+import dataclasses
+
 import numpy as np
 import pandas as pd
 import torch
@@ -1110,6 +1112,85 @@ def load_eval_ground_truth(
 
     eval_batch.validate()
     return eval_batch
+
+
+GT_COVERAGE_COLUMN: str = "coverage_ratio"
+
+
+def _load_ls_coverage(gt_path: str | Path) -> dict[tuple[int, str], float]:
+    """폴리곤 기반 이벤트의 LS 시트에서 (event_idx, 시정촌코드) → coverage_ratio를 읽는다.
+
+    coverage_ratio 열이 없는 이벤트(보고서 기반)는 결과에 없다.
+    """
+    coverage: dict[tuple[int, str], float] = {}
+    for event_name in EVENTS:
+        df, sheet_name = _read_gt_sheet(gt_path, event_name, "LS")
+        if GT_COVERAGE_COLUMN not in df.columns:
+            continue
+        rows = _prepare_gt_code_rows(df, sheet_name=sheet_name)
+        values = pd.to_numeric(df.loc[rows.index, GT_COVERAGE_COLUMN], errors="coerce")
+        for code, value in zip(rows[MUNICIPALITY_CODE_COLUMN], values):
+            if pd.notna(value):
+                coverage[(EVENT_TO_INDEX[event_name], code)] = float(value)
+    return coverage
+
+
+def attach_ls_labels(
+    gt_path: str | Path,
+    model_batch: PilotABatch,
+    eval_gt: EvalGroundTruthBatch,
+) -> PilotABatch:
+    """
+    후속실험 4: LS 라벨과 판독 범위 비율(cov)을 모델 행에 붙인 새 batch를 돌려준다.
+
+    LS 라벨은 시정촌 전체가 아니라 인벤토리 판독 범위 안의 관측이다.
+    cov 규칙(교수님 2026-09-26 지시):
+    - 폴리곤 기반 이벤트에서 라벨이 있고 coverage_ratio > 0인 행: 그 값
+    - 보고서 기반 라벨, 훗카이도의 ls_flag만 있는 행(coverage_ratio = 0): cov = 1
+    - 라벨 없는 행: cov = 1 (log cov = 0)
+    """
+    B = model_batch.batch_size
+    label = torch.zeros(B, dtype=INDEX_DTYPE)
+    label_mask = torch.zeros(B, dtype=torch.bool)
+
+    has_label = eval_gt.ls_eval_mask
+    rows = eval_gt.model_row_idx[has_label]
+    label[rows] = eval_gt.gt_ls[has_label]
+    label_mask[rows] = True
+
+    coverage = _load_ls_coverage(gt_path)
+    cov = torch.ones(B, dtype=DTYPE)
+    event_idx = model_batch.event_idx.tolist()
+    for i in rows.tolist():
+        value = coverage.get((event_idx[i], model_batch.municipality_code[i]))
+        if value is None or value <= 0:
+            continue
+        if value > 1:
+            raise ValueError(
+                f"coverage_ratio는 0~1이어야 합니다: "
+                f"{(event_idx[i], model_batch.municipality_code[i], value)}"
+            )
+        cov[i] = value
+
+    return dataclasses.replace(
+        model_batch,
+        log_cov_ls=torch.log(cov),
+        ls_label=label,
+        ls_label_mask=label_mask,
+    )
+
+
+def subset_batch(batch: PilotABatch, keep: torch.Tensor) -> PilotABatch:
+    """keep [B] bool이 True인 행만 남긴 batch. event_idx 번호는 그대로 둔다."""
+    keep_list = keep.tolist()
+    changes = {}
+    for f in dataclasses.fields(batch):
+        value = getattr(batch, f.name)
+        if isinstance(value, torch.Tensor):
+            changes[f.name] = value[keep]
+        elif isinstance(value, tuple):
+            changes[f.name] = tuple(v for v, k in zip(value, keep_list) if k)
+    return dataclasses.replace(batch, **changes)
 
 
 def load_eval_inputs(

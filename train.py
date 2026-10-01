@@ -5,12 +5,12 @@ import torch
 
 from likelihood import DamageLikelihood
 from regression import DamageRegression
-from prior import AreaPrior, Prior, prior_log_w
-from marginal import marginalize
+from prior import AreaPrior, Prior, prior_log_w, prior_z
+from marginal import marginalize, marginalize_labeled
 from infer import infer
-from loader import load_eval_ground_truth, load_pilot_a_batch
-from eval import evaluate
-from schema import INDEX_TO_EVENT, EvalGroundTruthBatch, PilotABatch
+from loader import attach_ls_labels, load_eval_ground_truth, load_pilot_a_batch, subset_batch
+from eval import auc, evaluate
+from schema import EPS, EVENTS, EVENT_TO_INDEX, INDEX_TO_EVENT, EvalGroundTruthBatch, PilotABatch
 
 from reporting import dump_params, save_eval, save_loss_history
 
@@ -20,7 +20,8 @@ GT_PATH = "validation/LS_LF 데이터자료.xlsx"
 
 # 후속실험 3: 이 브랜치의 prior 조건. followup3-area-avg-<모드> 브랜치마다 이 값만 다르다.
 # z = a·log p̄ + b + c·log k (prior.AreaPrior). None이면 기존 Prior(a·logit(pi)+b)를 쓴다.
-DEFAULT_AREA_MODE = "fixed"
+# 후속실험 4(followup4-area-mtn-holdout): 조건 A에 log cov + κ·z_mtn을 더하고 LS 라벨로 학습한다.
+DEFAULT_AREA_MODE = "fixed-cov-mtn"
 
 
 def save_predictions(batch, p_ls, p_lq, path="outputs/predictions.csv", extra=None):
@@ -66,10 +67,7 @@ def to_eval_pred(batch: PilotABatch, p_ls, p_lq, eval_gt: EvalGroundTruthBatch, 
     # 원값 prior와 순위가 다르다. 면적 항이 없는 조건은 인자 두 개짜리 z를 쓴다.
     if pri is not None and hasattr(pri, "z"):
         with torch.no_grad():
-            if hasattr(batch, "log_k_ls"):
-                z_ls, z_lq = pri.z(batch.pi_ls, batch.pi_lq, batch.log_k_ls, batch.log_k_lq)
-            else:
-                z_ls, z_lq = pri.z(batch.pi_ls, batch.pi_lq)
+            z_ls, z_lq = prior_z(pri, batch)
         out["zprior_ls"] = z_ls[idx].detach().numpy()
         out["zprior_lq"] = z_lq[idx].detach().numpy()
 
@@ -102,7 +100,8 @@ def to_eval_gt(eval_gt: EvalGroundTruthBatch):
 
 
 def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_bound=2.0,
-          b_min=None,b_max=None,area_mode=None,c_min=0.0,c_max=2.0):
+          b_min=None,b_max=None,area_mode=None,c_min=0.0,c_max=2.0,
+          lam_kappa=0.0,mtn_standardize="train",reg_mtn=False,use_labels=True):
     """
     lam_gamma  : gamma에 거는 L2 정규화 계수. loss에 lam_gamma * sum(gamma^2)를 더한다.
                  gamma에 N(0, 1/(2*lam_gamma)) prior를 준 MAP 추정과 같다.
@@ -113,11 +112,19 @@ def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_
                  후속실험 2의 b in [-2, 4]가 이 경우다. 둘 다 줘야 한다.
     area_mode  : 후속실험 3. AreaPrior 모드(prior.AreaPrior.MODES). 주면 prior_mode·b_bound는 쓰지 않는다.
                  b 범위는 b_min/b_max(기본 [-2, 4]), c 범위는 c_min/c_max(기본 [0, 2])다.
+    lam_kappa  : 후속실험 4. area_mode="fixed-cov-mtn"의 κ에 거는 L2 계수. loss에 lam_kappa * κ^2를 더한다.
+    mtn_standardize : "train"이면 z_mtn을 넘겨받은 batch(학습 행) 기준으로 다시 표준화한다.
+                 "all"이면 loader가 모델 418행 전체로 표준화한 값을 그대로 쓴다.
+    reg_mtn    : 피해 회귀식에 η_c·z_mtn을 넣는다(점검 실험 E6·E7). 기본은 넣지 않는다.
+    use_labels : False면 라벨 있는 행도 4상태를 모두 합한다(점검 실험 E8).
+
+    area_mode="fixed-cov-mtn"이면 batch.ls_label이 있는 행은 LS를 라벨로 고정해 우도를 계산한다.
+    평가할 이벤트는 호출하는 쪽에서 batch에서 미리 빼고 넘겨야 한다(loader.subset_batch).
     """
     torch.manual_seed(seed)
 
     like=DamageLikelihood()
-    reg=DamageRegression()
+    reg=DamageRegression(use_mtn=reg_mtn)
     if area_mode is None:
         pri=Prior(mode=prior_mode,b_bound=b_bound,b_min=b_min,b_max=b_max)
     else:
@@ -134,6 +141,13 @@ def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_
                       c_min=c_min,c_max=c_max)
         # 중심화 모드면 batch 전체의 log k 평균을 한 번 재 둔다.
         pri.fit_center(batch.log_k_ls, batch.log_k_lq)
+        if pri.use_cov_mtn and mtn_standardize == "train":
+            pri.fit_mtn(batch.z_mtn)
+
+    # 후속실험 4: 라벨 있는 행의 log P(LS=ℓ) 항이 κ를 학습시킨다.
+    use_labels = use_labels and getattr(pri, "use_cov_mtn", False)
+    if use_labels and batch.ls_label_mask is None:
+        raise ValueError("fixed-cov-mtn 모드는 loader.attach_ls_labels로 만든 batch가 필요합니다.")
 
     history = []
     reg.initialize_from_batch(batch)
@@ -148,7 +162,10 @@ def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_
         out_l=like(batch,out_r.mu)
         w_batch=prior_log_w(pri,batch)
         
-        _,log_Py=marginalize(w_batch,out_l.log_L)
+        if use_labels:
+            _,log_Py=marginalize_labeled(w_batch,out_l.log_L,batch.ls_label,batch.ls_label_mask)
+        else:
+            _,log_Py=marginalize(w_batch,out_l.log_L)
         nll=-log_Py.sum()
 
         # gamma는 softplus를 거친 실제 값에 건다. 변환 전 raw에 걸면 식의 gamma가 아니다.
@@ -158,6 +175,9 @@ def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_
             )
         else:
             penalty = torch.zeros((), dtype=nll.dtype)
+        # κ 벌점은 라벨 사용 여부와 상관없이 건다(E8도 같은 손실에서 라벨만 뺀다).
+        if getattr(pri, "use_cov_mtn", False) and lam_kappa > 0:
+            penalty = penalty + lam_kappa * pri.kappa ** 2
         loss = nll + penalty
 
         opt.zero_grad() #기울기 누적 초기화
@@ -178,6 +198,96 @@ def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_
 
     return reg,like,pri,pd.DataFrame(history)
 
+
+
+def report_holdout(batch, reg, like, pri, p_ls, event_name, sfx):
+    """후속실험 4: 학습에서 뺀 이벤트 하나의 LS AUC 표(교수님 Step 5)를 출력·저장한다.
+
+    p_ls는 라벨 없음 식(4상태 합)으로 낸 사후다. 평가 이벤트의 라벨을 쓰면 정답 누수다.
+    prior 점수의 log cov는 판독 범위 정보일 뿐 정답이 아니라 평가 이벤트에도 넣는다.
+    """
+    ho_idx = EVENT_TO_INDEX[event_name]
+    rows = (batch.event_idx == ho_idx) & batch.ls_label_mask
+    y = batch.ls_label[rows].numpy()
+
+    with torch.no_grad():
+        z_a = torch.log(batch.pi_ls.clamp_min(EPS)) + batch.log_k_ls      # 조건 A 자기 prior
+        z_cov = z_a + batch.log_cov_ls                                     # cov 보정, κ = 0
+        z_full, _ = prior_z(pri, batch)                                    # Step 1 식
+        kappa = float(pri.kappa)
+
+        # 뺀 이벤트의 alpha_e는 gradient를 받지 못해 초기값 0(기준 이벤트와 같은 수준)에 머문다.
+        # 이 선택에 사후가 얼마나 민감한지 보려고, 학습 이벤트 alpha_e의 평균을 넣은 값도 같이 낸다.
+        free_i = ho_idx if ho_idx < reg.reference_event_idx else ho_idx - 1
+        alpha = reg.alpha_event
+        alpha_mean = alpha[torch.arange(len(alpha)) != ho_idx].mean()
+        kept = reg.alpha_event_free[free_i].clone()
+        reg.alpha_event_free[free_i] = alpha_mean
+        log_joint, log_Py = marginalize(prior_log_w(pri, batch), like(batch, reg(batch).mu).log_L)
+        p_ls_alt, _ = infer(log_joint, log_Py)
+        reg.alpha_event_free[free_i] = kept
+
+        # 세 번째 선택: 뺀 이벤트의 alpha_e 하나만 그 이벤트의 피해 y로 맞춘다(라벨은 쓰지 않는다).
+        # 나머지 파라미터는 전부 학습된 값에 고정한다. mu = E·exp(… + alpha_e)라서
+        # alpha_e = 0일 때의 mu에 exp(alpha_e)를 곱하면 된다.
+        ho = subset_batch(batch, batch.event_idx == ho_idx)
+        log_w_ho, mu0_ho = prior_log_w(pri, ho), reg(ho).mu
+    alpha_fit = torch.zeros((), dtype=mu0_ho.dtype, requires_grad=True)
+    opt = torch.optim.LBFGS([alpha_fit], lr=0.5, max_iter=200, line_search_fn="strong_wolfe")
+
+    def closure():
+        opt.zero_grad()
+        _, log_Py = marginalize(log_w_ho, like(ho, mu0_ho * torch.exp(alpha_fit)).log_L)
+        loss = -log_Py.sum()
+        loss.backward()
+        return loss
+
+    opt.step(closure)
+    with torch.no_grad():
+        log_joint, log_Py = marginalize(log_w_ho, like(ho, mu0_ho * torch.exp(alpha_fit)).log_L)
+        p_ls_fit = torch.full_like(p_ls, float("nan"))
+        p_ls_fit[batch.event_idx == ho_idx] = infer(log_joint, log_Py)[0]
+    alpha_fit = alpha_fit.detach()
+
+    scores = {
+        "auc_usgs_prior": batch.pi_ls, "auc_A_own_prior": z_a, "auc_cov_prior_kappa0": z_cov,
+        "auc_cov_kappa_prior": z_full, "auc_posterior": p_ls, "auc_posterior_alpha_mean": p_ls_alt,
+        "auc_posterior_alpha_fit": p_ls_fit,
+    }
+    summary = {"event": event_name, "n": int(rows.sum()), "n_pos": int(y.sum()),
+               "n_neg": int((y == 0).sum())}
+    summary.update({k: auc(y, v[rows].numpy()) for k, v in scores.items()})
+    summary.update({"kappa": kappa, "mtn_center": float(pri.mtn_center),
+                    "mtn_scale": float(pri.mtn_scale),
+                    "alpha_e_holdout": float(kept), "alpha_e_holdout_alt": float(alpha_mean),
+                    "alpha_e_holdout_fit": float(alpha_fit)})
+
+    detail = pd.DataFrame({
+        "event": event_name,
+        "muni_code": [c for c, r in zip(batch.municipality_code, rows.tolist()) if r],
+        "ls_true": y,
+        "pi_ls": batch.pi_ls[rows].numpy(), "log_k_ls": batch.log_k_ls[rows].numpy(),
+        "log_cov_ls": batch.log_cov_ls[rows].numpy(), "z_mtn": batch.z_mtn[rows].numpy(),
+        "z_A": z_a[rows].numpy(), "z_cov": z_cov[rows].numpy(), "z_cov_kappa": z_full[rows].numpy(),
+        "p_ls": p_ls[rows].numpy(), "p_ls_alpha_mean": p_ls_alt[rows].numpy(),
+        "p_ls_alpha_fit": p_ls_fit[rows].numpy(),
+    })
+    Path("outputs").mkdir(exist_ok=True)
+    pd.DataFrame([summary]).to_csv(f"outputs/holdout_summary{sfx}.csv", index=False, encoding="utf-8-sig")
+    detail.to_csv(f"outputs/holdout_detail{sfx}.csv", index=False, encoding="utf-8-sig")
+
+    print(f"\n[{event_name}] 평가 {summary['n']}행 (양성 {summary['n_pos']} / 음성 {summary['n_neg']})")
+    print(f"  원래 USGS prior AUC              {summary['auc_usgs_prior']:.4f}")
+    print(f"  조건 A 자기 prior AUC (보정 전)  {summary['auc_A_own_prior']:.4f}")
+    print(f"  cov 보정 prior AUC (κ = 0)       {summary['auc_cov_prior_kappa0']:.4f}")
+    print(f"  cov 보정 + κ prior AUC           {summary['auc_cov_kappa_prior']:.4f}")
+    print(f"  사후 AUC                         {summary['auc_posterior']:.4f}"
+          f"   (alpha_e = 학습 이벤트 평균일 때 {summary['auc_posterior_alpha_mean']:.4f})")
+    print(f"  사후 AUC (alpha_e 피해로 맞춤)   {summary['auc_posterior_alpha_fit']:.4f}"
+          f"   (alpha_e: 0 / 평균 {float(alpha_mean):+.3f} / 맞춤 {float(alpha_fit):+.3f})")
+    print(f"  학습된 κ                         {kappa:+.4f}")
+    print(f"저장: outputs/holdout_summary{sfx}.csv, outputs/holdout_detail{sfx}.csv")
+    return summary
 
 
 if __name__ == "__main__":
@@ -204,14 +314,31 @@ if __name__ == "__main__":
                     help="후속실험 3 면적 prior 모드. none이면 기존 prior(--prior-mode)를 쓴다")
     ap.add_argument("--c-min", type=float, default=0.0, help="area-mode=free일 때 c의 하한")
     ap.add_argument("--c-max", type=float, default=2.0, help="area-mode=free일 때 c의 상한")
+    ap.add_argument("--holdout-event", default=None, choices=list(EVENTS),
+                    help="후속실험 4. 이 이벤트의 전체 행을 학습에서 빼고, 이 이벤트만 평가한다")
+    ap.add_argument("--lam-kappa", type=float, default=None,
+                    help="κ L2 계수. 안 주면 --lam-gamma와 같은 값")
+    ap.add_argument("--mtn-standardize", default="train", choices=["train", "all"],
+                    help="z_mtn 표준화 기준. train=학습 행(기본) / all=모델 418행 전체")
+    ap.add_argument("--eval-events", nargs="+", default=None, choices=list(EVENTS),
+                    help="분리 없이 학습했을 때(E4·E7) 이 이벤트들도 holdout 표 형식으로 낸다")
+    ap.add_argument("--reg-mtn", action="store_true",
+                    help="피해 회귀식에 η·z_mtn을 넣는다 (점검 실험 E6·E7)")
+    ap.add_argument("--no-labels", action="store_true",
+                    help="LS 라벨을 학습에 쓰지 않는다 (점검 실험 E8)")
     ap.add_argument("--tag", default="",
                     help="출력 파일명 뒤에 붙일 꼬리표. 여러 설정을 비교할 때 서로 덮이지 않는다")
     args = ap.parse_args()
 
     area_mode = None if args.area_mode == "none" else args.area_mode
+    if args.holdout_event is not None and area_mode != "fixed-cov-mtn":
+        ap.error("--holdout-event는 --area-mode fixed-cov-mtn에서만 씁니다.")
+    lam_kappa = args.lam_gamma if args.lam_kappa is None else args.lam_kappa
     if area_mode is not None and not args.tag:
         # 조건마다 결과 파일이 서로 덮이지 않게 한다.
         args.tag = f"area-{area_mode}"
+        if args.holdout_event is not None:
+            args.tag += "_holdout-" + args.holdout_event.replace(" ", "")
     sfx = f"_{args.tag}" if args.tag else ""
 
     # 학습용 batch(382행)를 만들고, 선배가 만든 API로 평가용 GT를 정렬해 받는다.
@@ -230,11 +357,26 @@ if __name__ == "__main__":
     else:
         print(f"설정: area_mode={area_mode} (z = a·log p̄ + b + c·log k) / lam_gamma={args.lam_gamma}")
 
+    # 후속실험 4: 라벨·cov를 batch에 붙이고, 평가할 이벤트의 전체 행을 학습에서 뺀다.
+    train_batch = batch
+    if area_mode == "fixed-cov-mtn":
+        batch = attach_ls_labels(GT_PATH, batch, eval_gt)
+        train_batch = batch
+        if args.holdout_event is not None:
+            ho_idx = EVENT_TO_INDEX[args.holdout_event]
+            train_batch = subset_batch(batch, batch.event_idx != ho_idx)
+        m = train_batch.ls_label_mask
+        print(f"학습 {train_batch.batch_size}행 / 라벨 {int(m.sum())}행 "
+              f"(양성 {int(train_batch.ls_label[m].sum())} / 음성 {int((train_batch.ls_label[m] == 0).sum())}) "
+              f"/ lam_kappa={lam_kappa} / z_mtn 표준화={args.mtn_standardize}")
+
     reg, like, pri, hist = train(
-        batch=batch, seed=args.seed, epochs=args.epochs, lr=args.lr,
+        batch=train_batch, seed=args.seed, epochs=args.epochs, lr=args.lr,
         lam_gamma=args.lam_gamma, prior_mode=args.prior_mode, b_bound=args.b_bound,
         b_min=args.b_min, b_max=args.b_max,
         area_mode=area_mode, c_min=args.c_min, c_max=args.c_max,
+        lam_kappa=lam_kappa, mtn_standardize=args.mtn_standardize,
+        reg_mtn=args.reg_mtn, use_labels=not args.no_labels,
     )
     save_loss_history(hist, tag=args.tag)
     dump_params(reg, like, pri, path=f"outputs/params{sfx}.csv")
@@ -246,6 +388,13 @@ if __name__ == "__main__":
         log_joint, log_Py = marginalize(log_w, out_l.log_L)
         p_ls, p_lq = infer(log_joint, log_Py)
 
+    if args.holdout_event is not None:
+        report_holdout(batch, reg, like, pri, p_ls, args.holdout_event, sfx)
+        raise SystemExit(0)
+    # 분리 없이 학습한 조건(E4·E7): 평가 이벤트의 α_e도 학습된 값이라 사후 AUC는 auc_posterior를 본다.
+    for ev in (args.eval_events or []):
+        report_holdout(batch, reg, like, pri, p_ls, ev, f"{sfx}_{ev.replace(' ', '')}")
+
     gt = to_eval_gt(eval_gt)
     pred = to_eval_pred(batch, p_ls, p_lq, eval_gt)
     result = evaluate(gt, pred)
@@ -255,7 +404,7 @@ if __name__ == "__main__":
     own, extra = None, None
     if isinstance(pri, AreaPrior):
         with torch.no_grad():
-            z_ls, z_lq = pri.z(batch.pi_ls, batch.pi_lq, batch.log_k_ls, batch.log_k_lq)
+            z_ls, z_lq = prior_z(pri, batch)
             own_ls, own_lq = torch.sigmoid(z_ls), torch.sigmoid(z_lq)
         own = evaluate(gt, to_eval_pred(batch, own_ls, own_lq, eval_gt))
         extra = {"log_k_ls": batch.log_k_ls.numpy(), "log_k_lq": batch.log_k_lq.numpy(),

@@ -182,6 +182,14 @@ class AreaPrior(nn.Module):
     b=0으로 고정된 모드(fixed 등)에서는 재매개변수화가 아니라 다른 모형이 되므로
     중심화하지 않는다 — 안 뺀 z = log λ 가 유도식 그 자체이기 때문이다.
 
+    판독 범위·산지 비율 모드 (후속실험 4, 교수님 2026-09-26 지시)
+    ----
+    "fixed-cov-mtn" : LS만  z = log p̄ + log k + log cov + κ·z_mtn.  LQ는 fixed 그대로.
+                      a=1, b=0, c=1 고정이고 κ 하나만 학습한다(초기값 0, 범위 제한 없음).
+                      log cov는 학습하지 않는 고정 보정값이다. LS 라벨은 시정촌 전체가 아니라
+                      판독 범위 안의 관측이라, k·cov가 "실제로 들여다본 칸 수"가 된다.
+                      z_mtn은 fit_mtn으로 학습 행 기준 표준화한다.
+
     학습하는 값은 기존 Prior처럼 sigmoid 재파라미터화로 범위를 지킨다.
     a ∈ [0.5, 2], b ∈ [b_min, b_max](기본 [-2, 4]), c ∈ [c_min, c_max](기본 [0, 2]).
     초기값은 a=1, b=0, c=1이다.
@@ -192,10 +200,11 @@ class AreaPrior(nn.Module):
     # b=0으로 고정된 모드(fixed / a1-* / lq-*)는 중심화하면 유도식이 깨지므로 넣지 않는다.
     MODES = ("fixed", "tied", "bounded", "free", "a1-c05", "a1-c2",
              "lq-c05", "lq-c075", "lq-c-free", "b-only",
-             "tied-ctr", "bounded-ctr", "free-ctr", "b-only-ctr")
+             "tied-ctr", "bounded-ctr", "free-ctr", "b-only-ctr",
+             "fixed-cov-mtn")
     # c를 학습하지 않는 모드의 c 값. tied는 c=a라서 여기 없다.
     FIXED_C = {"fixed": 1.0, "bounded": 1.0, "a1-c05": 0.5, "a1-c2": 2.0,
-               "b-only": 1.0, "b-only-ctr": 1.0}
+               "b-only": 1.0, "b-only-ctr": 1.0, "fixed-cov-mtn": 1.0}
 
     CENTER_SUFFIX = "-ctr"
 
@@ -271,6 +280,25 @@ class AreaPrior(nn.Module):
                 "c", torch.full((2,), self.FIXED_C[self.base_mode], dtype=DTYPE)
             )
 
+        # 후속실험 4: LS prior에 log cov(고정)와 κ·z_mtn(학습)을 더한다.
+        self.use_cov_mtn = self.base_mode == "fixed-cov-mtn"
+        self.register_buffer("mtn_center", torch.zeros((), dtype=DTYPE))
+        self.register_buffer("mtn_scale", torch.ones((), dtype=DTYPE))
+        if self.use_cov_mtn:
+            self.kappa = nn.Parameter(torch.zeros((), dtype=DTYPE))
+
+    def fit_mtn(self, z_mtn: Tensor) -> "AreaPrior":
+        """z_mtn을 학습 행 기준으로 다시 표준화할 평균·표준편차를 기억해 둔다.
+
+        batch.z_mtn은 모델 418행 전체로 표준화돼 있다. 이벤트 하나를 학습에서 빼면
+        남은 행 기준으로 맞춰야 평가 이벤트의 값이 표준화에 섞이지 않는다.
+        loader와 같은 표본 표준편차(ddof=1)를 쓴다. 학습 파라미터가 아니다.
+        """
+        with torch.no_grad():
+            self.mtn_center.copy_(z_mtn.mean())
+            self.mtn_scale.copy_(z_mtn.std())
+        return self
+
     @staticmethod
     def _scale(raw: Tensor, lo: float, hi: float) -> Tensor:
         return lo + (hi - lo) * torch.sigmoid(raw)
@@ -312,8 +340,11 @@ class AreaPrior(nn.Module):
             return torch.cat([self.c[:1], c_lq])
         return self.c
 
-    def z(self, pi_ls, pi_lq, log_k_ls, log_k_lq):
-        """z_ls, z_lq [B]. 평가에서 '자기 prior' 단독 점수로도 쓴다."""
+    def z(self, pi_ls, pi_lq, log_k_ls, log_k_lq, log_cov_ls=None, z_mtn=None):
+        """z_ls, z_lq [B]. 평가에서 '자기 prior' 단독 점수로도 쓴다.
+
+        log_cov_ls, z_mtn은 fixed-cov-mtn 모드에서만 쓴다.
+        """
         # p̄ = 0인 행이 있어 log 0을 피하려고 기존 logit과 같은 EPS로 아래를 자른다.
         x_ls = torch.log(pi_ls.clamp_min(EPS))
         x_lq = torch.log(pi_lq.clamp_min(EPS))
@@ -321,10 +352,14 @@ class AreaPrior(nn.Module):
         # 중심화 모드가 아니면 log_k_center가 0이라 원값 그대로다.
         z_ls = a[0] * x_ls + b[0] + c[0] * (log_k_ls - self.log_k_center[0])
         z_lq = a[1] * x_lq + b[1] + c[1] * (log_k_lq - self.log_k_center[1])
+        if self.use_cov_mtn:
+            if log_cov_ls is None or z_mtn is None:
+                raise ValueError("fixed-cov-mtn 모드는 log_cov_ls와 z_mtn이 필요합니다.")
+            z_ls = z_ls + log_cov_ls + self.kappa * (z_mtn - self.mtn_center) / self.mtn_scale
         return z_ls, z_lq
 
-    def forward(self, pi_ls, pi_lq, log_k_ls, log_k_lq):
-        z_ls, z_lq = self.z(pi_ls, pi_lq, log_k_ls, log_k_lq)
+    def forward(self, pi_ls, pi_lq, log_k_ls, log_k_lq, log_cov_ls=None, z_mtn=None):
+        z_ls, z_lq = self.z(pi_ls, pi_lq, log_k_ls, log_k_lq, log_cov_ls, z_mtn)
 
         log_p_ls, log_q_ls = F.logsigmoid(z_ls), F.logsigmoid(-z_ls)
         log_p_lq, log_q_lq = F.logsigmoid(z_lq), F.logsigmoid(-z_lq)
@@ -338,5 +373,21 @@ class AreaPrior(nn.Module):
 def prior_log_w(pri, batch):
     """Prior / AreaPrior 어느 쪽이든 batch에서 4상태 log prior [B, 4]를 만든다."""
     if isinstance(pri, AreaPrior):
-        return pri(batch.pi_ls, batch.pi_lq, batch.log_k_ls, batch.log_k_lq)
+        return pri(*_area_inputs(pri, batch))
     return pri(batch.pi_ls, batch.pi_lq)
+
+
+def _area_inputs(pri, batch):
+    args = [batch.pi_ls, batch.pi_lq, batch.log_k_ls, batch.log_k_lq]
+    if pri.use_cov_mtn:
+        if batch.log_cov_ls is None:
+            raise ValueError("fixed-cov-mtn 모드는 loader.attach_ls_labels로 만든 batch가 필요합니다.")
+        args += [batch.log_cov_ls, batch.z_mtn]
+    return args
+
+
+def prior_z(pri, batch):
+    """Prior / AreaPrior 어느 쪽이든 batch에서 z_ls, z_lq [B]를 만든다."""
+    if isinstance(pri, AreaPrior):
+        return pri.z(*_area_inputs(pri, batch))
+    return pri.z(batch.pi_ls, batch.pi_lq)

@@ -124,7 +124,11 @@ def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_
     torch.manual_seed(seed)
 
     like=DamageLikelihood()
-    reg=DamageRegression(use_mtn=reg_mtn)
+    # α_e 기준 이벤트(0으로 고정)는 기본 0번(2004 니가타)이다. 그 이벤트를 학습에서 뺐으면
+    # 학습에 남은 첫 이벤트로 옮긴다. 기준을 옮겨도 α_c가 흡수하는 재매개변수화라 모형은 같다.
+    present = sorted(set(batch.event_idx.tolist()))
+    ref = 0 if 0 in present else present[0]
+    reg=DamageRegression(reference_event_idx=ref, use_mtn=reg_mtn)
     if area_mode is None:
         pri=Prior(mode=prior_mode,b_bound=b_bound,b_min=b_min,b_max=b_max)
     else:
@@ -218,20 +222,19 @@ def report_holdout(batch, reg, like, pri, p_ls, event_name, sfx):
 
         # 뺀 이벤트의 alpha_e는 gradient를 받지 못해 초기값 0(기준 이벤트와 같은 수준)에 머문다.
         # 이 선택에 사후가 얼마나 민감한지 보려고, 학습 이벤트 alpha_e의 평균을 넣은 값도 같이 낸다.
-        free_i = ho_idx if ho_idx < reg.reference_event_idx else ho_idx - 1
-        alpha = reg.alpha_event
-        alpha_mean = alpha[torch.arange(len(alpha)) != ho_idx].mean()
-        kept = reg.alpha_event_free[free_i].clone()
-        reg.alpha_event_free[free_i] = alpha_mean
-        log_joint, log_Py = marginalize(prior_log_w(pri, batch), like(batch, reg(batch).mu).log_L)
-        p_ls_alt, _ = infer(log_joint, log_Py)
-        reg.alpha_event_free[free_i] = kept
-
-        # 세 번째 선택: 뺀 이벤트의 alpha_e 하나만 그 이벤트의 피해 y로 맞춘다(라벨은 쓰지 않는다).
-        # 나머지 파라미터는 전부 학습된 값에 고정한다. mu = E·exp(… + alpha_e)라서
-        # alpha_e = 0일 때의 mu에 exp(alpha_e)를 곱하면 된다.
-        ho = subset_batch(batch, batch.event_idx == ho_idx)
+        # mu = E·exp(… + alpha_e)라서 alpha_e를 바꾸는 것은 현재 mu에 exp(새 값 − 현재 값)을 곱하는 것과 같다.
+        ho_mask = batch.event_idx == ho_idx
+        ho = subset_batch(batch, ho_mask)
         log_w_ho, mu0_ho = prior_log_w(pri, ho), reg(ho).mu
+        alpha = reg.alpha_event
+        kept = alpha[ho_idx].clone()
+        alpha_mean = alpha[torch.arange(len(alpha)) != ho_idx].mean()
+        log_joint, log_Py = marginalize(log_w_ho, like(ho, mu0_ho * torch.exp(alpha_mean - kept)).log_L)
+        p_ls_alt = torch.full_like(p_ls, float("nan"))
+        p_ls_alt[ho_mask] = infer(log_joint, log_Py)[0]
+
+    # 세 번째 선택: 뺀 이벤트의 alpha_e 하나만 그 이벤트의 피해 y로 맞춘다(라벨은 쓰지 않는다).
+    # 나머지 파라미터는 전부 학습된 값에 고정한다. 현재 값에서 출발해 차이만 학습한다.
     alpha_fit = torch.zeros((), dtype=mu0_ho.dtype, requires_grad=True)
     opt = torch.optim.LBFGS([alpha_fit], lr=0.5, max_iter=200, line_search_fn="strong_wolfe")
 
@@ -247,7 +250,7 @@ def report_holdout(batch, reg, like, pri, p_ls, event_name, sfx):
         log_joint, log_Py = marginalize(log_w_ho, like(ho, mu0_ho * torch.exp(alpha_fit)).log_L)
         p_ls_fit = torch.full_like(p_ls, float("nan"))
         p_ls_fit[batch.event_idx == ho_idx] = infer(log_joint, log_Py)[0]
-    alpha_fit = alpha_fit.detach()
+    alpha_fit = (kept + alpha_fit).detach()
 
     scores = {
         "auc_usgs_prior": batch.pi_ls, "auc_A_own_prior": z_a, "auc_cov_prior_kappa0": z_cov,

@@ -22,6 +22,12 @@ GT_PATH = "validation/LS_LF 데이터자료.xlsx"
 # z = a·log p̄ + b + c·log k (prior.AreaPrior). None이면 기존 Prior(a·logit(pi)+b)를 쓴다.
 # 후속실험 4(followup4-area-mtn-holdout): 조건 A에 log cov + κ·z_mtn을 더하고 LS 라벨로 학습한다.
 DEFAULT_AREA_MODE = "fixed-cov-mtn"
+# 이 브랜치의 액상화 조건. 산사태는 위 최종 모델(cov + κ·z_mtn + 산사태 라벨) 그대로다.
+# 액상화 prior는 조건 J(b_LQ만 학습, log k_LQ 중심화).
+# followup4-lq-J-nolabels: 액상화 라벨은 평가에만 쓰고 학습에는 넣지 않는다(분리만).
+# 명령줄에서 --no-lq-labels / --no-lq-b-only 로 끌 수 있다.
+DEFAULT_LQ_LABELS = False
+DEFAULT_LQ_B_ONLY = True
 
 
 def save_predictions(batch, p_ls, p_lq, path="outputs/predictions.csv", extra=None):
@@ -382,10 +388,10 @@ if __name__ == "__main__":
                     help="피해 회귀식에 η·z_mtn을 넣는다 (점검 실험 E6·E7)")
     ap.add_argument("--no-labels", action="store_true",
                     help="LS 라벨을 학습에 쓰지 않는다 (점검 실험 E8)")
-    ap.add_argument("--lq-labels", action="store_true",
-                    help="followup4-lq-holdout. LQ 라벨이 있는 행은 LQ도 라벨로 고정해 학습한다")
-    ap.add_argument("--lq-b-only", action="store_true",
-                    help="액상화 prior만 조건 J(b_LQ 학습, log k_LQ 중심화). 산사태는 그대로")
+    ap.add_argument("--lq-labels", action=argparse.BooleanOptionalAction, default=DEFAULT_LQ_LABELS,
+                    help="LQ 라벨이 있는 행은 LQ도 라벨로 고정해 학습한다 (이 브랜치 기본값: DEFAULT_LQ_LABELS)")
+    ap.add_argument("--lq-b-only", action=argparse.BooleanOptionalAction, default=DEFAULT_LQ_B_ONLY,
+                    help="액상화 prior만 조건 J(b_LQ 학습, log k_LQ 중심화). 산사태는 그대로 (기본 켜짐)")
     ap.add_argument("--lq-mtn", action="store_true",
                     help="액상화 prior에 κ_LQ·z_mtn을 더한다 (경우 1). --lq-labels와 함께 쓴다")
     ap.add_argument("--tag", default="",

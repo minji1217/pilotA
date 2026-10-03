@@ -215,7 +215,8 @@ class AreaPrior(nn.Module):
     A_MIN, A_MAX = 0.5, 2.0
 
     def __init__(self, mode: str = "fixed", b_min: float = -2.0, b_max: float = 4.0,
-                 c_min: float = 0.0, c_max: float = 2.0, lq_mtn: bool = False):
+                 c_min: float = 0.0, c_max: float = 2.0, lq_mtn: bool = False,
+                 lq_b_only: bool = False):
         super().__init__()
         if mode not in self.MODES:
             raise ValueError(f"mode는 {self.MODES} 중 하나여야 합니다: {mode}")
@@ -295,6 +296,17 @@ class AreaPrior(nn.Module):
         if self.lq_mtn:
             self.kappa_lq = nn.Parameter(torch.zeros((), dtype=DTYPE))
 
+        # 액상화만 후속실험 3의 조건 J(b-only)로 둔다: z_LQ = log p̄ + b_LQ + (log k − m_LQ).
+        # a = c = 1 고정, b_LQ만 [b_min, b_max]에서 학습한다. m_LQ는 학습 행의 log k 평균(fit_center).
+        # b는 모든 시정촌에 같은 값을 더하므로 액상화 prior의 순위는 조건 A와 같고 수준만 바뀐다.
+        # 산사태 쪽(a = c = 1, b = 0, log k 원값, + log cov + κ·z_mtn)은 그대로다.
+        if lq_b_only and (not self.use_cov_mtn or self.learn_ab or self.learn_b_only):
+            raise ValueError("lq_b_only는 fixed-cov-mtn 모드에서만 쓸 수 있습니다.")
+        self.lq_b_only = bool(lq_b_only)
+        if self.lq_b_only:
+            b_init = _inverse_sigmoid((0.0 - b_min) / (b_max - b_min))
+            self._b_lq_raw = nn.Parameter(torch.full((1,), b_init, dtype=DTYPE))
+
     def fit_mtn(self, z_mtn: Tensor) -> "AreaPrior":
         """z_mtn을 학습 행 기준으로 다시 표준화할 평균·표준편차를 기억해 둔다.
 
@@ -321,6 +333,8 @@ class AreaPrior(nn.Module):
         """실제 식에 들어가는 b [2]. LS=0, LQ=1."""
         if self.learn_ab or self.learn_b_only:
             return self._scale(self._b_raw, self.B_MIN, self.B_MAX)
+        if getattr(self, "lq_b_only", False):
+            return torch.cat([self.b[:1], self._scale(self._b_lq_raw, self.B_MIN, self.B_MAX)])
         return self.b
 
     def fit_center(self, log_k_ls: Tensor, log_k_lq: Tensor) -> "AreaPrior":
@@ -333,6 +347,10 @@ class AreaPrior(nn.Module):
                 self.log_k_center.copy_(
                     torch.stack([log_k_ls.mean(), log_k_lq.mean()]).to(self.log_k_center)
                 )
+        elif getattr(self, "lq_b_only", False):
+            # 액상화만 중심화한다. 산사태는 b = 0 유도식이라 중심화하지 않는다.
+            with torch.no_grad():
+                self.log_k_center[1] = log_k_lq.mean()
         return self
 
     @property

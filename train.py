@@ -102,7 +102,7 @@ def to_eval_gt(eval_gt: EvalGroundTruthBatch):
 def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_bound=2.0,
           b_min=None,b_max=None,area_mode=None,c_min=0.0,c_max=2.0,
           lam_kappa=0.0,mtn_standardize="train",reg_mtn=False,use_labels=True,
-          lq_labels=False,lq_mtn=False):
+          lq_labels=False,lq_mtn=False,lq_b_only=False):
     """
     lam_gamma  : gamma에 거는 L2 정규화 계수. loss에 lam_gamma * sum(gamma^2)를 더한다.
                  gamma에 N(0, 1/(2*lam_gamma)) prior를 준 MAP 추정과 같다.
@@ -120,6 +120,7 @@ def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_
     use_labels : False면 라벨 있는 행도 4상태를 모두 합한다(점검 실험 E8).
     lq_labels  : followup4-lq-holdout. LQ 라벨이 있는 행은 LQ도 라벨로 고정한다(LS 라벨과 함께).
     lq_mtn     : 액상화 prior에 κ_LQ·z_mtn을 더한다(경우 1). κ_LQ에도 lam_kappa 벌점을 건다.
+    lq_b_only  : 액상화 prior만 조건 J(b-only)로 둔다. b_LQ 학습 [-20, 20], log k_LQ는 학습 행 평균 중심화.
 
     area_mode="fixed-cov-mtn"이면 batch.ls_label이 있는 행은 LS를 라벨로 고정해 우도를 계산한다.
     평가할 이벤트는 호출하는 쪽에서 batch에서 미리 빼고 넘겨야 한다(loader.subset_batch).
@@ -140,12 +141,12 @@ def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_
         # 중심화를 안 해도 기존 [-2, 4]로는 좁았다(bounded의 b_LQ가 -1.947로 하한에 붙었다).
         # 넓게 두고 어디서 멈추는지 보는 편이 낫다.
         _base = area_mode[:-4] if area_mode.endswith("-ctr") else area_mode
-        wide = _base in ("tied", "bounded", "free", "b-only")
+        wide = _base in ("tied", "bounded", "free", "b-only") or lq_b_only
         default_b = (-20.0, 20.0) if wide else (-2.0, 4.0)
         pri=AreaPrior(mode=area_mode,
                       b_min=default_b[0] if b_min is None else b_min,
                       b_max=default_b[1] if b_max is None else b_max,
-                      c_min=c_min,c_max=c_max,lq_mtn=lq_mtn)
+                      c_min=c_min,c_max=c_max,lq_mtn=lq_mtn,lq_b_only=lq_b_only)
         # 중심화 모드면 batch 전체의 log k 평균을 한 번 재 둔다.
         pri.fit_center(batch.log_k_ls, batch.log_k_lq)
         if pri.use_cov_mtn and mtn_standardize == "train":
@@ -295,6 +296,8 @@ def report_holdout(batch, reg, like, pri, p_ls, p_lq, event_name, sfx):
                         "n_neg_lq": int((y_lq == 0).sum())})
         summary.update({k: auc(y_lq, v[rows_lq].numpy()) for k, v in scores_lq.items()})
         summary["kappa_lq"] = kappa_lq
+        summary["b_lq"] = float(pri.b_value[1])
+        summary["log_k_center_lq"] = float(pri.log_k_center[1])
 
     detail = pd.DataFrame({
         "event": event_name,
@@ -381,6 +384,8 @@ if __name__ == "__main__":
                     help="LS 라벨을 학습에 쓰지 않는다 (점검 실험 E8)")
     ap.add_argument("--lq-labels", action="store_true",
                     help="followup4-lq-holdout. LQ 라벨이 있는 행은 LQ도 라벨로 고정해 학습한다")
+    ap.add_argument("--lq-b-only", action="store_true",
+                    help="액상화 prior만 조건 J(b_LQ 학습, log k_LQ 중심화). 산사태는 그대로")
     ap.add_argument("--lq-mtn", action="store_true",
                     help="액상화 prior에 κ_LQ·z_mtn을 더한다 (경우 1). --lq-labels와 함께 쓴다")
     ap.add_argument("--tag", default="",
@@ -438,7 +443,7 @@ if __name__ == "__main__":
         area_mode=area_mode, c_min=args.c_min, c_max=args.c_max,
         lam_kappa=lam_kappa, mtn_standardize=args.mtn_standardize,
         reg_mtn=args.reg_mtn, use_labels=not args.no_labels,
-        lq_labels=args.lq_labels, lq_mtn=args.lq_mtn,
+        lq_labels=args.lq_labels, lq_mtn=args.lq_mtn, lq_b_only=args.lq_b_only,
     )
     save_loss_history(hist, tag=args.tag)
     dump_params(reg, like, pri, path=f"outputs/params{sfx}.csv")

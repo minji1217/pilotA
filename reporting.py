@@ -126,6 +126,8 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
             spec += [("pri", "kappa", "kappa", [0], ["LS"], "none")]
             if getattr(pri, "lq_mtn", False):
                 spec += [("pri", "kappa_lq", "kappa", [1], ["LQ"], "none")]
+            if getattr(pri, "lq_b_only", False):
+                spec += [("pri", "_b_lq_raw", "b", [1], ["LQ"], f"bounded[{pri.B_MIN},{pri.B_MAX}]")]
     elif mode == "free":
         spec += [
             ("pri", "a", "a", [0, 1], ["LS", "LQ"], "none"),
@@ -156,6 +158,7 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
             # prior의 a, b는 sigmoid 재파라미터화라 raw와 실제 값이 다르다.
             c_val = getattr(pri, "c_value", None)
             val = {"_a_raw": pri.a_value, "_b_raw": pri.b_value,
+                   "_b_lq_raw": pri.b_value[1:],
                    "_c_raw": c_val,
                    # c_LQ만 학습하는 모드는 값도 LQ 한 칸만 꺼낸다.
                    "_c_lq_raw": None if c_val is None else c_val[1:]}[pname].detach()
@@ -191,6 +194,10 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
         if getattr(pri, "learn_b_only", False):
             # b는 위에서 학습행으로 들어갔다. a만 고정행이다.
             fixed += [("a", pri.a_value, f"fixed(area={mode})", ["LS", "LQ"])]
+        elif getattr(pri, "lq_b_only", False):
+            # b_LQ는 위에서 학습행으로 들어갔다. a와 b_LS만 고정행이다.
+            fixed += [("a", pri.a_value, f"fixed(area={mode})", ["LS", "LQ"]),
+                      ("b", pri.b_value[:1], f"fixed(area={mode})", ["LS"])]
         elif not pri.learn_ab:
             fixed += [("a", pri.a_value, f"fixed(area={mode})", ["LS", "LQ"]),
                       ("b", pri.b_value, f"fixed(area={mode})", ["LS", "LQ"])]

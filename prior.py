@@ -215,7 +215,7 @@ class AreaPrior(nn.Module):
     A_MIN, A_MAX = 0.5, 2.0
 
     def __init__(self, mode: str = "fixed", b_min: float = -2.0, b_max: float = 4.0,
-                 c_min: float = 0.0, c_max: float = 2.0):
+                 c_min: float = 0.0, c_max: float = 2.0, lq_mtn: bool = False):
         super().__init__()
         if mode not in self.MODES:
             raise ValueError(f"mode는 {self.MODES} 중 하나여야 합니다: {mode}")
@@ -287,6 +287,14 @@ class AreaPrior(nn.Module):
         if self.use_cov_mtn:
             self.kappa = nn.Parameter(torch.zeros((), dtype=DTYPE))
 
+        # followup4-lq-holdout 경우 1: 액상화 prior에도 κ_LQ·z_mtn을 더한다.
+        # 액상화 정답에는 판독 범위가 없어 log cov는 더하지 않는다(모든 행 cov = 1).
+        if lq_mtn and not self.use_cov_mtn:
+            raise ValueError("lq_mtn은 fixed-cov-mtn 모드에서만 쓸 수 있습니다.")
+        self.lq_mtn = bool(lq_mtn)
+        if self.lq_mtn:
+            self.kappa_lq = nn.Parameter(torch.zeros((), dtype=DTYPE))
+
     def fit_mtn(self, z_mtn: Tensor) -> "AreaPrior":
         """z_mtn을 학습 행 기준으로 다시 표준화할 평균·표준편차를 기억해 둔다.
 
@@ -356,6 +364,8 @@ class AreaPrior(nn.Module):
             if log_cov_ls is None or z_mtn is None:
                 raise ValueError("fixed-cov-mtn 모드는 log_cov_ls와 z_mtn이 필요합니다.")
             z_ls = z_ls + log_cov_ls + self.kappa * (z_mtn - self.mtn_center) / self.mtn_scale
+            if self.lq_mtn:
+                z_lq = z_lq + self.kappa_lq * (z_mtn - self.mtn_center) / self.mtn_scale
         return z_ls, z_lq
 
     def forward(self, pi_ls, pi_lq, log_k_ls, log_k_lq, log_cov_ls=None, z_mtn=None):

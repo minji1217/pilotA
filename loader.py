@@ -1148,6 +1148,9 @@ def attach_ls_labels(
     - 폴리곤 기반 이벤트에서 라벨이 있고 coverage_ratio > 0인 행: 그 값
     - 보고서 기반 라벨, 훗카이도의 ls_flag만 있는 행(coverage_ratio = 0): cov = 1
     - 라벨 없는 행: cov = 1 (log cov = 0)
+
+    LQ 라벨(gt_lq / lq_eval_mask)도 같이 붙인다. 액상화 정답은 J-SHIS 전국 지도(빈칸 = 0)나
+    보고서 기반이라 판독 범위 개념이 없다. 그래서 cov는 LS에만 있다.
     """
     B = model_batch.batch_size
     label = torch.zeros(B, dtype=INDEX_DTYPE)
@@ -1157,6 +1160,13 @@ def attach_ls_labels(
     rows = eval_gt.model_row_idx[has_label]
     label[rows] = eval_gt.gt_ls[has_label]
     label_mask[rows] = True
+
+    lq_label = torch.zeros(B, dtype=INDEX_DTYPE)
+    lq_label_mask = torch.zeros(B, dtype=torch.bool)
+    has_lq = eval_gt.lq_eval_mask
+    rows_lq = eval_gt.model_row_idx[has_lq]
+    lq_label[rows_lq] = eval_gt.gt_lq[has_lq]
+    lq_label_mask[rows_lq] = True
 
     coverage = _load_ls_coverage(gt_path)
     cov = torch.ones(B, dtype=DTYPE)
@@ -1177,6 +1187,8 @@ def attach_ls_labels(
         log_cov_ls=torch.log(cov),
         ls_label=label,
         ls_label_mask=label_mask,
+        lq_label=lq_label,
+        lq_label_mask=lq_label_mask,
     )
 
 

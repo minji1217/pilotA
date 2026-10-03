@@ -124,6 +124,8 @@ def dump_params(reg, like, pri, path="outputs/params.csv"):
         if getattr(pri, "use_cov_mtn", False):
             # 후속실험 4: 산지 비율 계수. LS prior에만 있고 범위 제한이 없다.
             spec += [("pri", "kappa", "kappa", [0], ["LS"], "none")]
+            if getattr(pri, "lq_mtn", False):
+                spec += [("pri", "kappa_lq", "kappa", [1], ["LQ"], "none")]
     elif mode == "free":
         spec += [
             ("pri", "a", "a", [0, 1], ["LS", "LQ"], "none"),

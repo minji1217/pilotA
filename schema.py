@@ -381,6 +381,10 @@ class PilotABatch:
     log_cov_ls: Tensor | None = None
     ls_label: Tensor | None = None
     ls_label_mask: Tensor | None = None
+    # 액상화 라벨(followup4-lq-holdout). jshis 기반 이벤트는 빈칸이 0이라 그 이벤트 전 행에 라벨이 있다.
+    # 액상화 정답에는 판독 범위(cov)가 없어 log_cov는 LS에만 있다.
+    lq_label: Tensor | None = None
+    lq_label_mask: Tensor | None = None
 
 
     @property

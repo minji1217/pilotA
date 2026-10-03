@@ -101,7 +101,8 @@ def to_eval_gt(eval_gt: EvalGroundTruthBatch):
 
 def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_bound=2.0,
           b_min=None,b_max=None,area_mode=None,c_min=0.0,c_max=2.0,
-          lam_kappa=0.0,mtn_standardize="train",reg_mtn=False,use_labels=True):
+          lam_kappa=0.0,mtn_standardize="train",reg_mtn=False,use_labels=True,
+          lq_labels=False,lq_mtn=False):
     """
     lam_gamma  : gamma에 거는 L2 정규화 계수. loss에 lam_gamma * sum(gamma^2)를 더한다.
                  gamma에 N(0, 1/(2*lam_gamma)) prior를 준 MAP 추정과 같다.
@@ -117,6 +118,8 @@ def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_
                  "all"이면 loader가 모델 418행 전체로 표준화한 값을 그대로 쓴다.
     reg_mtn    : 피해 회귀식에 η_c·z_mtn을 넣는다(점검 실험 E6·E7). 기본은 넣지 않는다.
     use_labels : False면 라벨 있는 행도 4상태를 모두 합한다(점검 실험 E8).
+    lq_labels  : followup4-lq-holdout. LQ 라벨이 있는 행은 LQ도 라벨로 고정한다(LS 라벨과 함께).
+    lq_mtn     : 액상화 prior에 κ_LQ·z_mtn을 더한다(경우 1). κ_LQ에도 lam_kappa 벌점을 건다.
 
     area_mode="fixed-cov-mtn"이면 batch.ls_label이 있는 행은 LS를 라벨로 고정해 우도를 계산한다.
     평가할 이벤트는 호출하는 쪽에서 batch에서 미리 빼고 넘겨야 한다(loader.subset_batch).
@@ -142,7 +145,7 @@ def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_
         pri=AreaPrior(mode=area_mode,
                       b_min=default_b[0] if b_min is None else b_min,
                       b_max=default_b[1] if b_max is None else b_max,
-                      c_min=c_min,c_max=c_max)
+                      c_min=c_min,c_max=c_max,lq_mtn=lq_mtn)
         # 중심화 모드면 batch 전체의 log k 평균을 한 번 재 둔다.
         pri.fit_center(batch.log_k_ls, batch.log_k_lq)
         if pri.use_cov_mtn and mtn_standardize == "train":
@@ -152,6 +155,9 @@ def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_
     use_labels = use_labels and getattr(pri, "use_cov_mtn", False)
     if use_labels and batch.ls_label_mask is None:
         raise ValueError("fixed-cov-mtn 모드는 loader.attach_ls_labels로 만든 batch가 필요합니다.")
+    use_lq_labels = lq_labels and use_labels
+    if use_lq_labels and batch.lq_label_mask is None:
+        raise ValueError("lq_labels에는 LQ 라벨이 붙은 batch가 필요합니다.")
 
     history = []
     reg.initialize_from_batch(batch)
@@ -166,7 +172,10 @@ def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_
         out_l=like(batch,out_r.mu)
         w_batch=prior_log_w(pri,batch)
         
-        if use_labels:
+        if use_lq_labels:
+            _,log_Py=marginalize_labeled(w_batch,out_l.log_L,batch.ls_label,batch.ls_label_mask,
+                                         batch.lq_label,batch.lq_label_mask)
+        elif use_labels:
             _,log_Py=marginalize_labeled(w_batch,out_l.log_L,batch.ls_label,batch.ls_label_mask)
         else:
             _,log_Py=marginalize(w_batch,out_l.log_L)
@@ -182,6 +191,8 @@ def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_
         # κ 벌점은 라벨 사용 여부와 상관없이 건다(E8도 같은 손실에서 라벨만 뺀다).
         if getattr(pri, "use_cov_mtn", False) and lam_kappa > 0:
             penalty = penalty + lam_kappa * pri.kappa ** 2
+            if getattr(pri, "lq_mtn", False):
+                penalty = penalty + lam_kappa * pri.kappa_lq ** 2
         loss = nll + penalty
 
         opt.zero_grad() #기울기 누적 초기화
@@ -204,21 +215,27 @@ def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_
 
 
 
-def report_holdout(batch, reg, like, pri, p_ls, event_name, sfx):
-    """후속실험 4: 학습에서 뺀 이벤트 하나의 LS AUC 표(교수님 Step 5)를 출력·저장한다.
+def report_holdout(batch, reg, like, pri, p_ls, p_lq, event_name, sfx):
+    """후속실험 4: 학습에서 뺀 이벤트 하나의 LS·LQ AUC 표(교수님 Step 5)를 출력·저장한다.
 
-    p_ls는 라벨 없음 식(4상태 합)으로 낸 사후다. 평가 이벤트의 라벨을 쓰면 정답 누수다.
+    p_ls / p_lq는 라벨 없음 식(4상태 합)으로 낸 사후다. 평가 이벤트의 라벨을 쓰면 정답 누수다.
     prior 점수의 log cov는 판독 범위 정보일 뿐 정답이 아니라 평가 이벤트에도 넣는다.
+    LQ는 cov가 없으므로 '조건 A 자기 prior'와 'κ_LQ 포함 prior' 두 단계만 있다.
     """
     ho_idx = EVENT_TO_INDEX[event_name]
     rows = (batch.event_idx == ho_idx) & batch.ls_label_mask
     y = batch.ls_label[rows].numpy()
+    has_lq = batch.lq_label_mask is not None
+    rows_lq = (batch.event_idx == ho_idx) & batch.lq_label_mask if has_lq else torch.zeros_like(rows)
+    y_lq = batch.lq_label[rows_lq].numpy() if has_lq else None
 
     with torch.no_grad():
         z_a = torch.log(batch.pi_ls.clamp_min(EPS)) + batch.log_k_ls      # 조건 A 자기 prior
         z_cov = z_a + batch.log_cov_ls                                     # cov 보정, κ = 0
-        z_full, _ = prior_z(pri, batch)                                    # Step 1 식
+        z_full, z_full_lq = prior_z(pri, batch)                            # Step 1 식
+        z_a_lq = torch.log(batch.pi_lq.clamp_min(EPS)) + batch.log_k_lq   # LQ 조건 A 자기 prior
         kappa = float(pri.kappa)
+        kappa_lq = float(pri.kappa_lq) if getattr(pri, "lq_mtn", False) else float("nan")
 
         # 뺀 이벤트의 alpha_e는 gradient를 받지 못해 초기값 0(기준 이벤트와 같은 수준)에 머문다.
         # 이 선택에 사후가 얼마나 민감한지 보려고, 학습 이벤트 alpha_e의 평균을 넣은 값도 같이 낸다.
@@ -231,7 +248,8 @@ def report_holdout(batch, reg, like, pri, p_ls, event_name, sfx):
         alpha_mean = alpha[torch.arange(len(alpha)) != ho_idx].mean()
         log_joint, log_Py = marginalize(log_w_ho, like(ho, mu0_ho * torch.exp(alpha_mean - kept)).log_L)
         p_ls_alt = torch.full_like(p_ls, float("nan"))
-        p_ls_alt[ho_mask] = infer(log_joint, log_Py)[0]
+        p_lq_alt = torch.full_like(p_lq, float("nan"))
+        p_ls_alt[ho_mask], p_lq_alt[ho_mask] = infer(log_joint, log_Py)
 
     # 세 번째 선택: 뺀 이벤트의 alpha_e 하나만 그 이벤트의 피해 y로 맞춘다(라벨은 쓰지 않는다).
     # 나머지 파라미터는 전부 학습된 값에 고정한다. 현재 값에서 출발해 차이만 학습한다.
@@ -249,7 +267,8 @@ def report_holdout(batch, reg, like, pri, p_ls, event_name, sfx):
     with torch.no_grad():
         log_joint, log_Py = marginalize(log_w_ho, like(ho, mu0_ho * torch.exp(alpha_fit)).log_L)
         p_ls_fit = torch.full_like(p_ls, float("nan"))
-        p_ls_fit[batch.event_idx == ho_idx] = infer(log_joint, log_Py)[0]
+        p_lq_fit = torch.full_like(p_lq, float("nan"))
+        p_ls_fit[ho_mask], p_lq_fit[ho_mask] = infer(log_joint, log_Py)
     alpha_fit = (kept + alpha_fit).detach()
 
     scores = {
@@ -265,6 +284,18 @@ def report_holdout(batch, reg, like, pri, p_ls, event_name, sfx):
                     "alpha_e_holdout": float(kept), "alpha_e_holdout_alt": float(alpha_mean),
                     "alpha_e_holdout_fit": float(alpha_fit)})
 
+    # 액상화. 같은 회차(같은 학습·같은 α_e)의 LQ 라벨 행만 채점한다.
+    scores_lq = {
+        "auc_lq_usgs_prior": batch.pi_lq, "auc_lq_A_own_prior": z_a_lq,
+        "auc_lq_kappa_prior": z_full_lq, "auc_lq_posterior": p_lq,
+        "auc_lq_posterior_alpha_mean": p_lq_alt, "auc_lq_posterior_alpha_fit": p_lq_fit,
+    }
+    if has_lq:
+        summary.update({"n_lq": int(rows_lq.sum()), "n_pos_lq": int(y_lq.sum()),
+                        "n_neg_lq": int((y_lq == 0).sum())})
+        summary.update({k: auc(y_lq, v[rows_lq].numpy()) for k, v in scores_lq.items()})
+        summary["kappa_lq"] = kappa_lq
+
     detail = pd.DataFrame({
         "event": event_name,
         "muni_code": [c for c, r in zip(batch.municipality_code, rows.tolist()) if r],
@@ -278,6 +309,18 @@ def report_holdout(batch, reg, like, pri, p_ls, event_name, sfx):
     Path("outputs").mkdir(exist_ok=True)
     pd.DataFrame([summary]).to_csv(f"outputs/holdout_summary{sfx}.csv", index=False, encoding="utf-8-sig")
     detail.to_csv(f"outputs/holdout_detail{sfx}.csv", index=False, encoding="utf-8-sig")
+    if has_lq:
+        detail_lq = pd.DataFrame({
+            "event": event_name,
+            "muni_code": [c for c, r in zip(batch.municipality_code, rows_lq.tolist()) if r],
+            "lq_true": y_lq,
+            "pi_lq": batch.pi_lq[rows_lq].numpy(), "log_k_lq": batch.log_k_lq[rows_lq].numpy(),
+            "z_mtn": batch.z_mtn[rows_lq].numpy(),
+            "z_A_lq": z_a_lq[rows_lq].numpy(), "z_kappa_lq": z_full_lq[rows_lq].numpy(),
+            "p_lq": p_lq[rows_lq].numpy(), "p_lq_alpha_mean": p_lq_alt[rows_lq].numpy(),
+            "p_lq_alpha_fit": p_lq_fit[rows_lq].numpy(),
+        })
+        detail_lq.to_csv(f"outputs/holdout_detail_lq{sfx}.csv", index=False, encoding="utf-8-sig")
 
     print(f"\n[{event_name}] 평가 {summary['n']}행 (양성 {summary['n_pos']} / 음성 {summary['n_neg']})")
     print(f"  원래 USGS prior AUC              {summary['auc_usgs_prior']:.4f}")
@@ -289,6 +332,13 @@ def report_holdout(batch, reg, like, pri, p_ls, event_name, sfx):
     print(f"  사후 AUC (alpha_e 피해로 맞춤)   {summary['auc_posterior_alpha_fit']:.4f}"
           f"   (alpha_e: 0 / 평균 {float(alpha_mean):+.3f} / 맞춤 {float(alpha_fit):+.3f})")
     print(f"  학습된 κ                         {kappa:+.4f}")
+    if has_lq:
+        print(f"  [LQ] 평가 {summary['n_lq']}행 (양성 {summary['n_pos_lq']} / 음성 {summary['n_neg_lq']})")
+        print(f"  [LQ] 원래 USGS prior AUC         {summary['auc_lq_usgs_prior']:.4f}")
+        print(f"  [LQ] 조건 A 자기 prior AUC       {summary['auc_lq_A_own_prior']:.4f}")
+        print(f"  [LQ] + κ_LQ prior AUC            {summary['auc_lq_kappa_prior']:.4f}   (κ_LQ {kappa_lq:+.4f})")
+        print(f"  [LQ] 사후 AUC  α_e=0 / 평균 / 맞춤   {summary['auc_lq_posterior']:.4f} / "
+              f"{summary['auc_lq_posterior_alpha_mean']:.4f} / {summary['auc_lq_posterior_alpha_fit']:.4f}")
     print(f"저장: outputs/holdout_summary{sfx}.csv, outputs/holdout_detail{sfx}.csv")
     return summary
 
@@ -329,6 +379,10 @@ if __name__ == "__main__":
                     help="피해 회귀식에 η·z_mtn을 넣는다 (점검 실험 E6·E7)")
     ap.add_argument("--no-labels", action="store_true",
                     help="LS 라벨을 학습에 쓰지 않는다 (점검 실험 E8)")
+    ap.add_argument("--lq-labels", action="store_true",
+                    help="followup4-lq-holdout. LQ 라벨이 있는 행은 LQ도 라벨로 고정해 학습한다")
+    ap.add_argument("--lq-mtn", action="store_true",
+                    help="액상화 prior에 κ_LQ·z_mtn을 더한다 (경우 1). --lq-labels와 함께 쓴다")
     ap.add_argument("--tag", default="",
                     help="출력 파일명 뒤에 붙일 꼬리표. 여러 설정을 비교할 때 서로 덮이지 않는다")
     args = ap.parse_args()
@@ -372,6 +426,10 @@ if __name__ == "__main__":
         print(f"학습 {train_batch.batch_size}행 / 라벨 {int(m.sum())}행 "
               f"(양성 {int(train_batch.ls_label[m].sum())} / 음성 {int((train_batch.ls_label[m] == 0).sum())}) "
               f"/ lam_kappa={lam_kappa} / z_mtn 표준화={args.mtn_standardize}")
+        if args.lq_labels:
+            mq = train_batch.lq_label_mask
+            print(f"LQ 라벨 {int(mq.sum())}행 (양성 {int(train_batch.lq_label[mq].sum())} / "
+                  f"음성 {int((train_batch.lq_label[mq] == 0).sum())}) / κ_LQ {'학습' if args.lq_mtn else '없음'}")
 
     reg, like, pri, hist = train(
         batch=train_batch, seed=args.seed, epochs=args.epochs, lr=args.lr,
@@ -380,6 +438,7 @@ if __name__ == "__main__":
         area_mode=area_mode, c_min=args.c_min, c_max=args.c_max,
         lam_kappa=lam_kappa, mtn_standardize=args.mtn_standardize,
         reg_mtn=args.reg_mtn, use_labels=not args.no_labels,
+        lq_labels=args.lq_labels, lq_mtn=args.lq_mtn,
     )
     save_loss_history(hist, tag=args.tag)
     dump_params(reg, like, pri, path=f"outputs/params{sfx}.csv")
@@ -392,11 +451,11 @@ if __name__ == "__main__":
         p_ls, p_lq = infer(log_joint, log_Py)
 
     if args.holdout_event is not None:
-        report_holdout(batch, reg, like, pri, p_ls, args.holdout_event, sfx)
+        report_holdout(batch, reg, like, pri, p_ls, p_lq, args.holdout_event, sfx)
         raise SystemExit(0)
     # 분리 없이 학습한 조건(E4·E7): 평가 이벤트의 α_e도 학습된 값이라 사후 AUC는 auc_posterior를 본다.
     for ev in (args.eval_events or []):
-        report_holdout(batch, reg, like, pri, p_ls, ev, f"{sfx}_{ev.replace(' ', '')}")
+        report_holdout(batch, reg, like, pri, p_ls, p_lq, ev, f"{sfx}_{ev.replace(' ', '')}")
 
     gt = to_eval_gt(eval_gt)
     pred = to_eval_pred(batch, p_ls, p_lq, eval_gt)

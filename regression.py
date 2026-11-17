@@ -162,6 +162,8 @@ class DamageRegression(nn.Module):
         reference_event_idx: int = 0,
         gamma_init: float = 0.1,
         use_mtn: bool = False,
+        use_pgv: bool = True,
+        use_exposure: bool = True,
     ) -> None:
         """
         회귀모형 파라미터를 생성한다.
@@ -198,6 +200,12 @@ class DamageRegression(nn.Module):
         """
 
         super().__init__()
+
+        # RQ4 ablation (입력·구조 층위). 기본값이면 기존 동작과 동일하다.
+        #   use_pgv=False      : log_lambda에서 beta_c*log(PGV) 항을 뺀다
+        #   use_exposure=False : mu = E*lambda 대신 mu = lambda (노출 offset 제거)
+        self.use_pgv = bool(use_pgv)
+        self.use_exposure = bool(use_exposure)
 
         if not 0 <= reference_event_idx < NUM_EVENTS:
             raise ValueError(
@@ -470,8 +478,15 @@ class DamageRegression(nn.Module):
 
         # 피해합이 0인 채널이 있으면
         # log(0)을 피하기 위해 EPS를 최소값으로 둔다.
+        if self.use_exposure:
+            denom = total_E
+        else:
+            # offset을 쓰지 않으면 lambda 자체가 '건수'이므로 alpha_c 초기값도
+            # 관측 행당 평균 건수로 맞춘다. E로 나눈 값(1e-4 수준)을 쓰면 발산한다.
+            denom = observed.sum(dim=0).clamp_min(1.0)
+
         empirical_rate = torch.clamp(
-            total_y / total_E,
+            total_y / denom,
             min=EPS,
         )
 
@@ -710,7 +725,7 @@ class DamageRegression(nn.Module):
         log_lambda = (
             channel_intercept
             + event_effect
-            + pgv_effect * log_pgv
+            + (pgv_effect * log_pgv if self.use_pgv else 0.0)
             + wood_effect * z_wood
             + (self.eta_mtn.view(1, 1, NUM_CHANNELS) * batch.z_mtn.view(B, 1, 1)
                if self.use_mtn else 0.0)
@@ -736,10 +751,14 @@ class DamageRegression(nn.Module):
         #
         # 결과:
         # mu [B,4,6]
-        mu = (
-            batch.E.unsqueeze(1)
-            * lambda_rate
-        )
+        if self.use_exposure:
+            mu = (
+                batch.E.unsqueeze(1)
+                * lambda_rate
+            )
+        else:
+            # 노출 offset 제거 조건: 지역 규모 정규화 없이 lambda를 그대로 기댓값으로 쓴다.
+            mu = lambda_rate
 
         # ----------------------------------------------------
         # numerical validation

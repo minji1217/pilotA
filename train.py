@@ -108,7 +108,8 @@ def to_eval_gt(eval_gt: EvalGroundTruthBatch):
 def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_bound=2.0,
           b_min=None,b_max=None,area_mode=None,c_min=0.0,c_max=2.0,
           lam_kappa=0.0,mtn_standardize="train",reg_mtn=False,use_labels=True,
-          lq_labels=False,lq_mtn=False,lq_b_only=False):
+          lq_labels=False,lq_mtn=False,lq_b_only=False,
+          like_dist="nb",use_pgv=True,use_exposure=True,prior_uniform=False):
     """
     lam_gamma  : gamma에 거는 L2 정규화 계수. loss에 lam_gamma * sum(gamma^2)를 더한다.
                  gamma에 N(0, 1/(2*lam_gamma)) prior를 준 MAP 추정과 같다.
@@ -133,12 +134,13 @@ def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_
     """
     torch.manual_seed(seed)
 
-    like=DamageLikelihood()
+    like=DamageLikelihood(dist=like_dist)
     # α_e 기준 이벤트(0으로 고정)는 기본 0번(2004 니가타)이다. 그 이벤트를 학습에서 뺐으면
     # 학습에 남은 첫 이벤트로 옮긴다. 기준을 옮겨도 α_c가 흡수하는 재매개변수화라 모형은 같다.
     present = sorted(set(batch.event_idx.tolist()))
     ref = 0 if 0 in present else present[0]
-    reg=DamageRegression(reference_event_idx=ref, use_mtn=reg_mtn)
+    reg=DamageRegression(reference_event_idx=ref, use_mtn=reg_mtn,
+                         use_pgv=use_pgv, use_exposure=use_exposure)
     if area_mode is None:
         pri=Prior(mode=prior_mode,b_bound=b_bound,b_min=b_min,b_max=b_max)
     else:
@@ -152,7 +154,8 @@ def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_
         pri=AreaPrior(mode=area_mode,
                       b_min=default_b[0] if b_min is None else b_min,
                       b_max=default_b[1] if b_max is None else b_max,
-                      c_min=c_min,c_max=c_max,lq_mtn=lq_mtn,lq_b_only=lq_b_only)
+                      c_min=c_min,c_max=c_max,lq_mtn=lq_mtn,lq_b_only=lq_b_only,
+                      uniform=prior_uniform)
         # 중심화 모드면 batch 전체의 log k 평균을 한 번 재 둔다.
         pri.fit_center(batch.log_k_ls, batch.log_k_lq)
         if pri.use_cov_mtn and mtn_standardize == "train":
@@ -168,9 +171,15 @@ def train(batch, *,seed=0,epochs=3000,lr=0.02,lam_gamma=0.0,prior_mode="free",b_
 
     history = []
     reg.initialize_from_batch(batch)
+    # RQ4 ablation: 쓰지 않는 파라미터는 학습에서 제외해 파라미터 수가 조건별로 정직하게 찍히게 한다.
+    if not use_pgv:
+        reg.beta_pgv.requires_grad_(False)
+    if like_dist == "poisson":
+        like._phi_unconstrained.requires_grad_(False)
     opt=torch.optim.Adam(list(like.parameters())+list(reg.parameters())+list(pri.parameters()),lr=lr)
     #total param??
-    print(f"총 학습될 파라미터 : {sum(p.numel() for p in opt.param_groups[0]['params'])}개")
+    _trainable = [p for p in opt.param_groups[0]['params'] if p.requires_grad]
+    print(f"총 학습될 파라미터 : {sum(p.numel() for p in _trainable)}개")
     
 
     for epoch in range(epochs):

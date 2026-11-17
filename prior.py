@@ -216,8 +216,12 @@ class AreaPrior(nn.Module):
 
     def __init__(self, mode: str = "fixed", b_min: float = -2.0, b_max: float = 4.0,
                  c_min: float = 0.0, c_max: float = 2.0, lq_mtn: bool = False,
-                 lq_b_only: bool = False):
+                 lq_b_only: bool = False, uniform: bool = False):
         super().__init__()
+        # RQ4 ablation (입력 층위). uniform=True면 z를 전 시정촌 동일 상수 0으로 둔다.
+        # sigmoid(0)=0.5라 네 잠재상태가 모두 0.25가 되어 prior가 아무 정보도 주지 않는다.
+        # USGS prior, 면적 항 c*log k, 판독범위 log cov, kappa*z_mtn이 전부 빠진다.
+        self.uniform = bool(uniform)
         if mode not in self.MODES:
             raise ValueError(f"mode는 {self.MODES} 중 하나여야 합니다: {mode}")
         self.mode = mode
@@ -371,6 +375,11 @@ class AreaPrior(nn.Module):
 
         log_cov_ls, z_mtn은 fixed-cov-mtn 모드에서만 쓴다.
         """
+        if getattr(self, "uniform", False):
+            # RQ4 ablation: 균등 prior. 모든 시정촌에 같은 값을 주어 순위 정보를 없앤다.
+            zeros = torch.zeros_like(pi_ls)
+            return zeros, zeros
+
         # p̄ = 0인 행이 있어 log 0을 피하려고 기존 logit과 같은 EPS로 아래를 자른다.
         x_ls = torch.log(pi_ls.clamp_min(EPS))
         x_lq = torch.log(pi_lq.clamp_min(EPS))

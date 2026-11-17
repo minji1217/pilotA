@@ -67,7 +67,7 @@ class DamageLikelihood(nn.Module):
     """
 
 
-    def __init__(self, *, phi_init: float = 5.0) -> None:
+    def __init__(self, *, phi_init: float = 5.0, dist: str = "nb") -> None:
         """
         채널별 phi 파라미터를 만든다.
 
@@ -81,6 +81,12 @@ class DamageLikelihood(nn.Module):
             raise ValueError("phi_init은 0보다 커야 합니다.")
 
         self.phi_init = float(phi_init)
+
+        # RQ4 ablation (모델 구조 층위). dist="poisson"이면 과분산 모수 phi를 쓰지 않고
+        # 평균=분산인 Poisson log-PMF로 계산한다. 기본값 "nb"는 기존 동작과 동일하다.
+        if dist not in ("nb", "poisson"):
+            raise ValueError(f'dist는 "nb" 또는 "poisson"이어야 합니다: {dist}')
+        self.dist_name = str(dist)
 
         phi_unconstrained_init = _inverse_softplus(self.phi_init)
         self._phi_unconstrained = nn.Parameter(
@@ -145,13 +151,17 @@ class DamageLikelihood(nn.Module):
         # PyTorch NegativeBinomial에서 mean=mu가 되도록 probs=mu/(mu+phi)를 사용한다.
         probs = mu / (mu + phi_broadcast)
 
-        dist = torch.distributions.NegativeBinomial(
-            total_count=phi_broadcast,
-            probs=probs,
-        )
+        if self.dist_name == "poisson":
+            # 과분산 모수 없음. Var(Y) = mu로 고정된다.
+            dist = torch.distributions.Poisson(rate=mu)
+        else:
+            dist = torch.distributions.NegativeBinomial(
+                total_count=phi_broadcast,
+                probs=probs,
+            )
 
         # 첫 forward에서만 mean/var이 설계식과 같은지 확인 
-        if not self._nb_parameterization_checked:
+        if not self._nb_parameterization_checked and self.dist_name == "nb":
             self._check_negative_binomial_parameterization(
                 dist=dist,
                 mu=mu,
